@@ -157,6 +157,7 @@ export default function CustomerDetail() {
 
   const quotationForm = useForm<QuotationFormData>({
     defaultValues: { course: '', amount: 0, discount: '', status: 'draft' },
+    mode: 'onChange',
   });
 
   const contractForm = useForm<ContractFormData>({
@@ -168,11 +169,27 @@ export default function CustomerDetail() {
       signDate: '',
       status: 'draft',
     },
+    mode: 'onChange',
   });
+
+  const [quotationErrors, setQuotationErrors] = useState<{ amount?: string }>({});
+  const [contractErrors, setContractErrors] = useState<{
+    totalAmount?: string;
+    receivedAmount?: string;
+  }>({});
+
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, refreshKey, id]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshKey(prev => prev + 1);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleAddCommunication = (data: CommunicationFormData) => {
     if (!id) return;
@@ -220,8 +237,44 @@ export default function CustomerDetail() {
     auditionForm.reset();
   };
 
+  const validateQuotation = (data: QuotationFormData): boolean => {
+    const errors: { amount?: string } = {};
+    
+    if (!data.amount || data.amount <= 0) {
+      errors.amount = '报价金额必须大于0';
+    } else if (isNaN(data.amount)) {
+      errors.amount = '请输入有效的金额';
+    }
+    
+    setQuotationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateContract = (data: ContractFormData): boolean => {
+    const errors: { totalAmount?: string; receivedAmount?: string } = {};
+    
+    if (!data.totalAmount || data.totalAmount <= 0) {
+      errors.totalAmount = '合同金额必须大于0';
+    } else if (isNaN(data.totalAmount)) {
+      errors.totalAmount = '请输入有效的金额';
+    }
+    
+    if (data.receivedAmount === undefined || data.receivedAmount < 0) {
+      errors.receivedAmount = '已收金额不能为负数';
+    } else if (isNaN(data.receivedAmount)) {
+      errors.receivedAmount = '请输入有效的金额';
+    } else if (data.receivedAmount > data.totalAmount) {
+      errors.receivedAmount = '已收金额不能大于合同金额';
+    }
+    
+    setContractErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleAddQuotation = (data: QuotationFormData) => {
     if (!id) return;
+    if (!validateQuotation(data)) return;
+    
     const newQuotation: Quotation = {
       id: generateId(),
       customerId: id,
@@ -234,23 +287,29 @@ export default function CustomerDetail() {
     addQuotation(newQuotation);
     setShowModal(null);
     quotationForm.reset();
+    setQuotationErrors({});
   };
 
   const handleAddContract = (data: ContractFormData) => {
     if (!id) return;
+    if (!validateContract(data)) return;
+    
+    const clampedReceived = Math.max(0, Math.min(data.receivedAmount, data.totalAmount));
+    
     const newContract: Contract = {
       id: generateId(),
       customerId: id,
       contractNo: data.contractNo,
       course: data.course,
       totalAmount: data.totalAmount,
-      receivedAmount: data.receivedAmount,
+      receivedAmount: clampedReceived,
       signDate: new Date(data.signDate).toISOString(),
       status: data.status,
     };
     addContract(newContract);
     setShowModal(null);
     contractForm.reset();
+    setContractErrors({});
   };
 
   const getAuditionStatusLabel = (status: AuditionStatus) => {
@@ -756,7 +815,9 @@ export default function CustomerDetail() {
               <div className="space-y-4">
                 {contracts.map((contract) => {
                   const status = getContractStatusLabel(contract.status);
-                  const progress = (contract.receivedAmount / contract.totalAmount) * 100;
+                  const progress = contract.totalAmount > 0 
+                    ? Math.max(0, Math.min(100, (contract.receivedAmount / contract.totalAmount) * 100)) 
+                    : 0;
                   return (
                     <div
                       key={contract.id}
@@ -1072,10 +1133,17 @@ export default function CustomerDetail() {
                       {...quotationForm.register('amount', {
                         required: true,
                         valueAsNumber: true,
+                        min: 0.01,
                       })}
                       placeholder="请输入金额..."
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className={cn(
+                        'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500',
+                        quotationErrors.amount ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                      )}
                     />
+                    {quotationErrors.amount && (
+                      <p className="mt-1 text-sm text-red-600">{quotationErrors.amount}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1162,10 +1230,17 @@ export default function CustomerDetail() {
                         {...contractForm.register('totalAmount', {
                           required: true,
                           valueAsNumber: true,
+                          min: 0.01,
                         })}
                         placeholder="总金额"
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={cn(
+                          'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500',
+                          contractErrors.totalAmount ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        )}
                       />
+                      {contractErrors.totalAmount && (
+                        <p className="mt-1 text-sm text-red-600">{contractErrors.totalAmount}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1176,10 +1251,17 @@ export default function CustomerDetail() {
                         {...contractForm.register('receivedAmount', {
                           required: true,
                           valueAsNumber: true,
+                          min: 0,
                         })}
                         placeholder="已回款"
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className={cn(
+                          'w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500',
+                          contractErrors.receivedAmount ? 'border-red-300 bg-red-50' : 'border-gray-200'
+                        )}
                       />
+                      {contractErrors.receivedAmount && (
+                        <p className="mt-1 text-sm text-red-600">{contractErrors.receivedAmount}</p>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">

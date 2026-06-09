@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { Task, FollowUp, Audition, Customer } from '../types';
-import { getData } from '../data/mockData';
+import { useCustomerStore } from './customerStore';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, isWithinInterval, eachDayOfInterval, format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -18,10 +18,6 @@ export interface ScheduleItem {
 }
 
 interface ScheduleState {
-  tasks: Task[];
-  followUps: FollowUp[];
-  auditions: Audition[];
-  customers: Customer[];
   loading: boolean;
   error: string | null;
   selectedDate: Date;
@@ -35,6 +31,12 @@ interface ScheduleState {
     completed: number;
     pending: number;
     highPriority: number;
+  };
+  getSourceData: () => {
+    tasks: Task[];
+    followUps: FollowUp[];
+    auditions: Audition[];
+    customers: Customer[];
   };
 }
 
@@ -61,10 +63,6 @@ const getCustomerName = (customers: Customer[], customerId: string) => {
 };
 
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
-  tasks: [],
-  followUps: [],
-  auditions: [],
-  customers: [],
   loading: false,
   error: null,
   selectedDate: new Date(),
@@ -73,28 +71,28 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     set({ selectedDate: date });
   },
 
+  getSourceData: () => {
+    const customerState = useCustomerStore.getState();
+    return {
+      tasks: customerState.tasks,
+      followUps: customerState.followUps,
+      auditions: customerState.auditions,
+      customers: customerState.customers,
+    };
+  },
+
   loadScheduleData: () => {
     set({ loading: true });
     try {
-      const tasks = getData<Task>('crm_tasks');
-      const followUps = getData<FollowUp>('crm_followups');
-      const auditions = getData<Audition>('crm_auditions');
-      const customers = getData<Customer>('crm_customers');
-
-      set({
-        tasks,
-        followUps,
-        auditions,
-        customers,
-        loading: false,
-      });
+      useCustomerStore.getState().loadData();
+      set({ loading: false });
     } catch (error) {
       set({ error: '日程数据加载失败', loading: false });
     }
   },
 
   getTodayTodos: () => {
-    const { tasks, followUps, auditions, customers } = get();
+    const { tasks, followUps, auditions, customers } = get().getSourceData();
     const todos: ScheduleItem[] = [];
 
     tasks
@@ -150,7 +148,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   },
 
   getWeekTasks: () => {
-    const { tasks, followUps, auditions, customers } = get();
+    const { tasks, followUps, auditions, customers } = get().getSourceData();
     const todos: ScheduleItem[] = [];
 
     tasks
@@ -210,7 +208,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   },
 
   getCalendarTasks: (year, month) => {
-    const { tasks, followUps, auditions, customers } = get();
+    const { tasks, followUps, auditions, customers } = get().getSourceData();
     const calendarTasks: Record<string, ScheduleItem[]> = {};
 
     const monthStart = new Date(year, month, 1);
@@ -288,7 +286,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   },
 
   getTaskStats: () => {
-    const { tasks, followUps } = get();
+    const { tasks, followUps } = get().getSourceData();
     const todayStart = startOfDay(new Date());
     const todayEnd = endOfDay(new Date());
 

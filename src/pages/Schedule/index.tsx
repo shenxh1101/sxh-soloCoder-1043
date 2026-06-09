@@ -13,6 +13,7 @@ import {
   Phone,
   MessageSquare,
   Users,
+  User,
 } from 'lucide-react';
 import { format, isToday, isSameDay } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -26,8 +27,9 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import Empty from '@/components/Empty';
 import { useScheduleStore, ScheduleItem } from '@/store/scheduleStore';
+import { useCustomerStore } from '@/store/customerStore';
 import { getWeekDates, getMonthDates, isOverdue } from '@/utils/date';
-import { Priority, PRIORITY_OPTIONS, COMMUNICATION_TYPE_OPTIONS } from '@/types';
+import { Priority, PRIORITY_OPTIONS, COMMUNICATION_TYPE_OPTIONS, Task } from '@/types';
 import { cn } from '@/lib/utils';
 
 type ViewMode = 'list' | 'calendar';
@@ -64,6 +66,14 @@ export default function Schedule() {
     setSelectedDate,
   } = useScheduleStore();
 
+  const {
+    customers,
+    consultants,
+    addTask,
+    updateTask,
+    loadData: loadCustomerData,
+  } = useCustomerStore();
+
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showAddModal, setShowAddModal] = useState(false);
@@ -74,15 +84,37 @@ export default function Schedule() {
     remindAt: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
     priority: 'medium' as Priority,
     communicationType: 'phone' as const,
+    customerId: '',
+    consultantId: '',
   });
+
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     loadScheduleData();
-  }, [loadScheduleData]);
+    loadCustomerData();
+  }, [loadScheduleData, loadCustomerData, refreshKey]);
 
-  const todayTodos = useMemo(() => getTodayTodos(), [getTodayTodos]);
-  const weekTasks = useMemo(() => getWeekTasks(), [getWeekTasks]);
-  const stats = useMemo(() => getTaskStats(), [getTaskStats]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshKey(prev => prev + 1);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const todayTodos = useMemo(() => getTodayTodos(), [getTodayTodos, refreshKey]);
+  const weekTasks = useMemo(() => getWeekTasks(), [getWeekTasks, refreshKey]);
+  const stats = useMemo(() => getTaskStats(), [getTaskStats, refreshKey]);
+
+  const customerOptions = [
+    { value: '', label: '不关联客户' },
+    ...customers.map(c => ({ value: c.id, label: `${c.name} - ${c.phone}` })),
+  ];
+
+  const consultantOptions = [
+    { value: '', label: '不指定顾问' },
+    ...consultants.map(c => ({ value: c.id, label: c.name })),
+  ];
 
   const calendarTasks = useMemo(() => {
     return getCalendarTasks(currentMonth.getFullYear(), currentMonth.getMonth());
@@ -108,16 +140,26 @@ export default function Schedule() {
     return grouped;
   }, [weekTasks, weekDates]);
 
-  const handleToggleComplete = (id: string) => {
-    setCompletedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+  const handleToggleComplete = (item: ScheduleItem) => {
+    if (item.type === 'task') {
+      const taskId = item.id.replace('task-', '');
+      const isCompleted = item.status === 'completed';
+      updateTask(taskId, { status: isCompleted ? 'pending' : 'completed' });
+    } else if (item.type === 'followUp') {
+      const followUpId = item.id.replace('followup-', '');
+      const isCompleted = completedItems.has(item.id);
+      setCompletedItems(prev => {
+        const next = new Set(prev);
+        if (isCompleted) {
+          next.delete(item.id);
+        } else {
+          next.add(item.id);
+        }
+        return next;
+      });
+      useCustomerStore.getState().updateFollowUp(followUpId, { completed: !isCompleted });
+    }
+    loadScheduleData();
   };
 
   const handlePrevMonth = () => {
@@ -134,6 +176,22 @@ export default function Schedule() {
   };
 
   const handleAddTask = () => {
+    if (!formData.title.trim()) return;
+
+    const newTask: Task = {
+      id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      customerId: formData.customerId,
+      consultantId: formData.consultantId,
+      title: formData.title,
+      description: formData.content,
+      dueDate: new Date(formData.remindAt).toISOString(),
+      priority: formData.priority,
+      status: 'pending',
+    };
+
+    addTask(newTask);
+    loadScheduleData();
+
     setShowAddModal(false);
     setFormData({
       title: '',
@@ -141,6 +199,8 @@ export default function Schedule() {
       remindAt: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       priority: 'medium',
       communicationType: 'phone',
+      customerId: '',
+      consultantId: '',
     });
   };
 
@@ -157,10 +217,15 @@ export default function Schedule() {
   };
 
   const getItemBackgroundColor = (item: ScheduleItem) => {
-    if (completedItems.has(item.id)) return 'bg-gray-50';
+    const isCompleted = item.status === 'completed' || completedItems.has(item.id);
+    if (isCompleted) return 'bg-gray-50';
     if (item.priority === 'high') return 'bg-red-50';
     if (item.priority === 'medium') return 'bg-yellow-50';
     return 'bg-white';
+  };
+
+  const isItemCompleted = (item: ScheduleItem) => {
+    return item.status === 'completed' || completedItems.has(item.id);
   };
 
   const getCommunicationIcon = (type: string) => {
@@ -250,7 +315,7 @@ export default function Schedule() {
                   <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
                   <div className="space-y-3">
                     {todayTodos.map((item) => {
-                      const isCompleted = completedItems.has(item.id);
+                      const isCompleted = isItemCompleted(item);
                       const isItemOverdue = isOverdue(`${item.date}T${item.time}`);
                       return (
                         <div
@@ -264,7 +329,7 @@ export default function Schedule() {
                         >
                           <div className="absolute left-2 top-4 w-4 h-4 rounded-full bg-white border-2 border-gray-300 flex items-center justify-center">
                             <button
-                              onClick={() => handleToggleComplete(item.id)}
+                              onClick={() => handleToggleComplete(item)}
                               className={cn(
                                 'w-full h-full rounded-full flex items-center justify-center transition-colors',
                                 isCompleted
@@ -516,6 +581,20 @@ export default function Schedule() {
               value={formData.priority}
               onChange={(value) => setFormData({ ...formData, priority: value as Priority })}
               options={PRIORITY_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="关联客户"
+              value={formData.customerId}
+              onChange={(value) => setFormData({ ...formData, customerId: value })}
+              options={customerOptions}
+            />
+            <Select
+              label="负责顾问"
+              value={formData.consultantId}
+              onChange={(value) => setFormData({ ...formData, consultantId: value })}
+              options={consultantOptions}
             />
           </div>
           <div>

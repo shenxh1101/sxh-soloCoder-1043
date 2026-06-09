@@ -492,10 +492,18 @@ export default function Statistics() {
   const [timeRange, setTimeRange] = useState<TimeRangeType>('thisMonth');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     loadStatisticsData();
-  }, [loadStatisticsData]);
+  }, [loadStatisticsData, refreshKey]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshKey(prev => prev + 1);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const now = new Date();
@@ -530,12 +538,12 @@ export default function Statistics() {
     setDateRange(start, end);
   }, [timeRange, customStartDate, customEndDate, setDateRange]);
 
-  const overallStats = useMemo(() => getOverallStats(), [getOverallStats]);
-  const conversionRates = useMemo(() => getConversionRates(), [getConversionRates]);
-  const sourceAnalysis = useMemo(() => getSourceAnalysis(), [getSourceAnalysis]);
-  const courseStats = useMemo(() => getCourseStats(), [getCourseStats]);
-  const performanceData = useMemo(() => getPerformanceData(6), [getPerformanceData]);
-  const stageDistribution = useMemo(() => getStageDistribution(), [getStageDistribution]);
+  const overallStats = useMemo(() => getOverallStats(), [getOverallStats, refreshKey]);
+  const conversionRates = useMemo(() => getConversionRates(), [getConversionRates, refreshKey]);
+  const sourceAnalysis = useMemo(() => getSourceAnalysis(), [getSourceAnalysis, refreshKey]);
+  const courseStats = useMemo(() => getCourseStats(), [getCourseStats, refreshKey]);
+  const performanceData = useMemo(() => getPerformanceData(6), [getPerformanceData, refreshKey]);
+  const stageDistribution = useMemo(() => getStageDistribution(), [getStageDistribution, refreshKey]);
 
   const courseColumns: ColumnDef<CourseStatsData, unknown>[] = [
     {

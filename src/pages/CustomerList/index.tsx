@@ -57,6 +57,7 @@ import { zhCN } from 'date-fns/locale';
 interface ImportResult {
   success: Customer[];
   duplicates: { row: number; phone: string; existingName: string }[];
+  invalidPhones: { row: number; phone: string; message: string }[];
   errors: { row: number; message: string }[];
 }
 
@@ -82,11 +83,20 @@ export default function CustomerList() {
   const [importing, setImporting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, refreshKey]);
 
-  const filteredCustomers = useMemo(() => getFilteredCustomers(), [customers, filters, getFilteredCustomers]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshKey(prev => prev + 1);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const filteredCustomers = useMemo(() => getFilteredCustomers(), [customers, filters, getFilteredCustomers, refreshKey]);
 
   const columns = useMemo(
     () => [
@@ -237,6 +247,7 @@ export default function CustomerList() {
     setShowImportModal(false);
     setImportResult(null);
     setSelectedFile(null);
+    loadData();
   };
 
   const handleExport = () => {
@@ -518,24 +529,28 @@ export default function CustomerList() {
 
               {importResult && (
                 <div className="mt-4 space-y-3">
-                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg flex-wrap">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-5 h-5 text-green-500" />
-                      <span className="text-green-700">成功: {importResult.success.length}</span>
+                      <span className="text-green-700 font-medium">成功: {importResult.success.length}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-5 h-5 text-amber-500" />
-                      <span className="text-amber-700">重复: {importResult.duplicates.length}</span>
+                      <span className="text-amber-700 font-medium">重复手机号: {importResult.duplicates.length}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-orange-500" />
+                      <span className="text-orange-700 font-medium">格式错误: {importResult.invalidPhones.length}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <XCircle className="w-5 h-5 text-red-500" />
-                      <span className="text-red-700">错误: {importResult.errors.length}</span>
+                      <span className="text-red-700 font-medium">其他错误: {importResult.errors.length}</span>
                     </div>
                   </div>
 
                   {importResult.duplicates.length > 0 && (
                     <div className="p-3 bg-amber-50 rounded-lg">
-                      <p className="text-sm font-medium text-amber-800 mb-2">重复记录</p>
+                      <p className="text-sm font-medium text-amber-800 mb-2">重复手机号记录</p>
                       <ul className="text-sm text-amber-700 space-y-1 max-h-24 overflow-y-auto">
                         {importResult.duplicates.map((d, i) => (
                           <li key={i}>
@@ -546,9 +561,22 @@ export default function CustomerList() {
                     </div>
                   )}
 
+                  {importResult.invalidPhones.length > 0 && (
+                    <div className="p-3 bg-orange-50 rounded-lg">
+                      <p className="text-sm font-medium text-orange-800 mb-2">手机号格式错误</p>
+                      <ul className="text-sm text-orange-700 space-y-1 max-h-24 overflow-y-auto">
+                        {importResult.invalidPhones.map((d, i) => (
+                          <li key={i}>
+                            第 {d.row} 行: {d.phone || '(空)'} - {d.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {importResult.errors.length > 0 && (
                     <div className="p-3 bg-red-50 rounded-lg">
-                      <p className="text-sm font-medium text-red-800 mb-2">错误记录</p>
+                      <p className="text-sm font-medium text-red-800 mb-2">其他错误记录</p>
                       <ul className="text-sm text-red-700 space-y-1 max-h-24 overflow-y-auto">
                         {importResult.errors.map((e, i) => (
                           <li key={i}>

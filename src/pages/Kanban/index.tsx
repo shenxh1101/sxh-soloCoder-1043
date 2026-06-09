@@ -235,9 +235,18 @@ export default function Kanban() {
     })
   );
 
+  const [refreshKey, setRefreshKey] = useState(0);
+
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, refreshKey]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshKey(prev => prev + 1);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const filteredCustomers = useMemo(() => {
     const filtered = getFilteredCustomers();
@@ -245,7 +254,7 @@ export default function Kanban() {
       return filtered.filter((c) => c.consultantId === filters.consultantId);
     }
     return filtered;
-  }, [customers, filters, getFilteredCustomers]);
+  }, [customers, filters, getFilteredCustomers, refreshKey]);
 
   const getCustomerNextFollowUp = (customerId: string): string | null => {
     const followUps = getCustomerFollowUps(customerId);
@@ -274,26 +283,6 @@ export default function Kanban() {
   };
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    const activeCustomer = customers.find((c) => c.id === activeId);
-    if (!activeCustomer) return;
-
-    const overColumn = STAGE_COLUMNS.find((col) => col.id === overId);
-    if (overColumn) {
-      if (activeCustomer.stage !== overColumn.id) {
-        updateCustomerStage(activeId, overColumn.id);
-      }
-    } else {
-      const overCustomer = customers.find((c) => c.id === overId);
-      if (overCustomer && activeCustomer.stage !== overCustomer.stage) {
-        updateCustomerStage(activeId, overCustomer.stage);
-      }
-    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -308,14 +297,20 @@ export default function Kanban() {
     const activeCustomer = customers.find((c) => c.id === activeId);
     if (!activeCustomer) return;
 
+    let newStage: CustomerStage | null = null;
+
     const overColumn = STAGE_COLUMNS.find((col) => col.id === overId);
     if (overColumn) {
-      updateCustomerStage(activeId, overColumn.id);
+      newStage = overColumn.id;
     } else {
       const overCustomer = customers.find((c) => c.id === overId);
       if (overCustomer) {
-        updateCustomerStage(activeId, overCustomer.stage);
+        newStage = overCustomer.stage;
       }
+    }
+
+    if (newStage && activeCustomer.stage !== newStage) {
+      updateCustomerStage(activeId, newStage);
     }
   };
 

@@ -5,6 +5,7 @@ import { SOURCE_OPTIONS, STAGE_COLUMNS, COURSE_OPTIONS } from '../types';
 interface ImportResult {
   success: Customer[];
   duplicates: { row: number; phone: string; existingName: string }[];
+  invalidPhones: { row: number; phone: string; message: string }[];
   errors: { row: number; message: string }[];
 }
 
@@ -23,13 +24,28 @@ export const importCustomersFromExcel = (
 
         const success: Customer[] = [];
         const duplicates: { row: number; phone: string; existingName: string }[] = [];
+        const invalidPhones: { row: number; phone: string; message: string }[] = [];
         const errors: { row: number; message: string }[] = [];
 
-        const headers = jsonData[0]?.map((h: string) => h.trim().toLowerCase()) || [];
-        const nameIndex = headers.indexOf('姓名') || headers.indexOf('name') || 0;
-        const phoneIndex = headers.indexOf('手机号') || headers.indexOf('phone') || 1;
-        const sourceIndex = headers.indexOf('来源') || headers.indexOf('source') || 2;
-        const courseIndex = headers.indexOf('意向课程') || headers.indexOf('course') || 3;
+        const headers = jsonData[0]?.map((h: string) => h ? h.trim().toLowerCase() : '') || [];
+        
+        const findColumnIndex = (keywords: string[]): number => {
+          for (const keyword of keywords) {
+            const index = headers.indexOf(keyword.toLowerCase());
+            if (index !== -1) return index;
+          }
+          return -1;
+        };
+        
+        let nameIndex = findColumnIndex(['姓名', 'name', '客户姓名', '客户名称']);
+        let phoneIndex = findColumnIndex(['手机号', 'phone', '电话', 'mobile', '联系电话']);
+        let sourceIndex = findColumnIndex(['来源', 'source', '客户来源', '获取渠道']);
+        let courseIndex = findColumnIndex(['意向课程', 'course', '课程', '报名课程', 'intendedCourse']);
+        
+        if (nameIndex === -1) nameIndex = 0;
+        if (phoneIndex === -1) phoneIndex = 1;
+        if (sourceIndex === -1) sourceIndex = 2;
+        if (courseIndex === -1) courseIndex = 3;
 
         const newPhones = new Set<string>();
 
@@ -47,13 +63,18 @@ export const importCustomersFromExcel = (
             continue;
           }
 
-          if (!phone || !/^1[3-9]\d{9}$/.test(phone)) {
-            errors.push({ row: i + 1, message: '手机号格式不正确' });
+          if (!phone) {
+            errors.push({ row: i + 1, message: '手机号不能为空' });
+            continue;
+          }
+
+          if (!/^1[3-9]\d{9}$/.test(phone)) {
+            invalidPhones.push({ row: i + 1, phone, message: '手机号格式不正确' });
             continue;
           }
 
           if (existingPhones.has(phone)) {
-            duplicates.push({ row: i + 1, phone, existingName: '已有记录' });
+            duplicates.push({ row: i + 1, phone, existingName: '系统已有记录' });
             continue;
           }
 
@@ -86,7 +107,7 @@ export const importCustomersFromExcel = (
           success.push(customer);
         }
 
-        resolve({ success, duplicates, errors });
+        resolve({ success, duplicates, invalidPhones, errors });
       } catch (error) {
         reject(error);
       }

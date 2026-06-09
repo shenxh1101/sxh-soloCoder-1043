@@ -138,6 +138,10 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
 
   updateCustomerStage: (id, stage) => {
     set((state) => {
+      const customer = state.customers.find((c) => c.id === id);
+      if (!customer || customer.stage === stage) {
+        return state;
+      }
       const customers = state.customers.map((c) =>
         c.id === id ? { ...c, stage, updatedAt: new Date().toISOString() } : c
       );

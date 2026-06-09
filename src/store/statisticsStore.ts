@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Customer, Contract, Consultant, CustomerSource, CustomerStage } from '../types';
 import { SOURCE_OPTIONS, COURSE_OPTIONS } from '../types';
-import { getData } from '../data/mockData';
+import { useCustomerStore } from './customerStore';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
 
 export interface ConversionRateData {
@@ -39,14 +39,16 @@ export interface PerformanceData {
 }
 
 interface StatisticsState {
-  customers: Customer[];
-  contracts: Contract[];
-  consultants: Consultant[];
   loading: boolean;
   error: string | null;
   dateRange: { start: string; end: string };
   setDateRange: (start: string, end: string) => void;
   loadStatisticsData: () => void;
+  getSourceData: () => {
+    customers: Customer[];
+    contracts: Contract[];
+    consultants: Consultant[];
+  };
   getConversionRates: () => ConversionRateData[];
   getSourceAnalysis: () => SourceAnalysisData[];
   getCourseStats: () => CourseStatsData[];
@@ -63,9 +65,6 @@ interface StatisticsState {
 }
 
 export const useStatisticsStore = create<StatisticsState>((set, get) => ({
-  customers: [],
-  contracts: [],
-  consultants: [],
   loading: false,
   error: null,
   dateRange: {
@@ -77,26 +76,27 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
     set({ dateRange: { start, end } });
   },
 
+  getSourceData: () => {
+    const customerState = useCustomerStore.getState();
+    return {
+      customers: customerState.customers,
+      contracts: customerState.contracts,
+      consultants: customerState.consultants,
+    };
+  },
+
   loadStatisticsData: () => {
     set({ loading: true });
     try {
-      const customers = getData<Customer>('crm_customers');
-      const contracts = getData<Contract>('crm_contracts');
-      const consultants = getData<Consultant>('crm_consultants');
-
-      set({
-        customers,
-        contracts,
-        consultants,
-        loading: false,
-      });
+      useCustomerStore.getState().loadData();
+      set({ loading: false });
     } catch (error) {
       set({ error: '统计数据加载失败', loading: false });
     }
   },
 
   getConversionRates: () => {
-    const { customers, consultants } = get();
+    const { customers, consultants } = get().getSourceData();
     
     const conversionRates = consultants
       .filter((c) => c.role !== 'admin')
@@ -129,7 +129,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getSourceAnalysis: () => {
-    const { customers } = get();
+    const { customers } = get().getSourceData();
     const totalCustomers = customers.length;
 
     return SOURCE_OPTIONS.map((sourceOption) => {
@@ -155,7 +155,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getCourseStats: () => {
-    const { customers, contracts } = get();
+    const { customers, contracts } = get().getSourceData();
 
     return COURSE_OPTIONS.map((course) => {
       const intendedCustomers = customers.filter(
@@ -184,7 +184,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getPerformanceData: (months = 6) => {
-    const { contracts, customers } = get();
+    const { contracts, customers } = get().getSourceData();
     const performance: PerformanceData[] = [];
 
     for (let i = months - 1; i >= 0; i--) {
@@ -216,7 +216,8 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getOverallStats: () => {
-    const { customers, contracts, dateRange } = get();
+    const { customers, contracts } = get().getSourceData();
+    const { dateRange } = get();
     const startDate = new Date(dateRange.start);
     const endDate = new Date(dateRange.end);
 
@@ -261,7 +262,8 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getStageDistribution: () => {
-    const { customers, dateRange } = get();
+    const { customers } = get().getSourceData();
+    const { dateRange } = get();
     const stages: CustomerStage[] = [
       'lead',
       'consulting',
