@@ -10,6 +10,7 @@ export interface BadgeProps {
   size?: BadgeSize;
   dot?: boolean;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
@@ -46,6 +47,7 @@ export function Badge({
   size = 'md',
   dot = false,
   className,
+  style,
 }: BadgeProps) {
   return (
     <span
@@ -55,6 +57,7 @@ export function Badge({
         variantClasses[variant],
         className
       )}
+      style={style}
     >
       {dot && (
         <span

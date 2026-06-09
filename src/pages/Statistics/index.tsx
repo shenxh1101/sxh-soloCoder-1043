@@ -32,6 +32,7 @@ import {
   PieChart as PieChartIcon,
   LineChart as LineChartIcon,
   UserCheck,
+  ListTodo,
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -43,7 +44,7 @@ import { Table } from '@/components/ui/Table';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useStatisticsStore } from '@/store/statisticsStore';
 import type { ConversionRateData, SourceAnalysisData, CourseStatsData, PerformanceData, FunnelData, ConsultantTaskStats } from '@/store/statisticsStore';
-import { STAGE_COLUMNS } from '@/types';
+import { STAGE_COLUMNS, TASK_TYPE_OPTIONS, TASK_SOURCE_LABELS, SOURCE_OPTIONS } from '@/types';
 import type { CustomerStage } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -555,6 +556,8 @@ export default function Statistics() {
     getStageDistribution,
     getFunnelData,
     getConsultantTaskStats,
+    getFilteredCustomerDetails,
+    getFilteredTaskDetails,
     setDateRange,
     dateRange,
     selectedConsultant,
@@ -618,6 +621,124 @@ export default function Statistics() {
   const stageDistribution = useMemo(() => getStageDistribution(), [getStageDistribution, refreshKey, selectedConsultant]);
   const funnelData = useMemo(() => getFunnelData(), [getFunnelData, refreshKey, selectedConsultant]);
   const consultantTaskStats = useMemo(() => getConsultantTaskStats(), [getConsultantTaskStats, refreshKey, selectedConsultant]);
+  const customerDetails = useMemo(() => getFilteredCustomerDetails(), [getFilteredCustomerDetails, refreshKey, selectedConsultant]);
+  const taskDetails = useMemo(() => getFilteredTaskDetails(), [getFilteredTaskDetails, refreshKey, selectedConsultant]);
+
+  const customerDetailColumns: ColumnDef<typeof customerDetails[0], unknown>[] = [
+    {
+      accessorKey: 'name',
+      header: '客户姓名',
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">{row.original.name}</div>
+      ),
+    },
+    {
+      accessorKey: 'phone',
+      header: '手机号',
+      cell: ({ row }) => (
+        <span className="text-gray-600">{row.original.phone}</span>
+      ),
+    },
+    {
+      accessorKey: 'stage',
+      header: '当前阶段',
+      cell: ({ row }) => {
+        const stageInfo = STAGE_COLUMNS.find(s => s.id === row.original.stage);
+        return (
+          <Badge variant="primary" size="sm" style={{ backgroundColor: `${stageInfo?.color}15`, color: stageInfo?.color }}>
+            {stageInfo?.title || row.original.stage}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'intendedCourse',
+      header: '意向课程',
+      cell: ({ row }) => (
+        <span className="text-gray-600">{row.original.intendedCourse}</span>
+      ),
+    },
+    {
+      accessorKey: 'source',
+      header: '来源',
+      cell: ({ row }) => {
+        const sourceOption = SOURCE_OPTIONS.find(s => s.value === row.original.source);
+        return (
+          <span className="text-gray-600">{sourceOption?.label || row.original.source}</span>
+        );
+      },
+    },
+    {
+      accessorKey: 'createdAt',
+      header: '创建时间',
+      cell: ({ row }) => (
+        <span className="text-gray-500 text-sm">{new Date(row.original.createdAt).toLocaleDateString()}</span>
+      ),
+    },
+  ];
+
+  const taskDetailColumns: ColumnDef<typeof taskDetails[0], unknown>[] = [
+    {
+      accessorKey: 'title',
+      header: '任务标题',
+      cell: ({ row }) => (
+        <div className="font-medium text-gray-900">{row.original.title}</div>
+      ),
+    },
+    {
+      accessorKey: 'customerName',
+      header: '关联客户',
+      cell: ({ row }) => (
+        <span className="text-gray-600">{row.original.customerName}</span>
+      ),
+    },
+    {
+      accessorKey: 'type',
+      header: '任务类型',
+      cell: ({ row }) => {
+        const typeInfo = TASK_TYPE_OPTIONS.find(t => t.label === row.original.type);
+        return (
+          <Badge variant="primary" size="sm" style={{ backgroundColor: `${typeInfo?.color || '#6B7280'}15`, color: typeInfo?.color || '#6B7280' }}>
+            {typeInfo?.icon} {row.original.type}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'source',
+      header: '来源',
+      cell: ({ row }) => {
+        const sourceLabel = TASK_SOURCE_LABELS[row.original.source as keyof typeof TASK_SOURCE_LABELS] || row.original.source;
+        const variant = row.original.source === 'manual' ? 'default' : 'secondary';
+        return <Badge variant={variant} size="sm">{sourceLabel}</Badge>;
+      },
+    },
+    {
+      accessorKey: 'priority',
+      header: '优先级',
+      cell: ({ row }) => {
+        const priorityLabels: Record<string, string> = { high: '高', medium: '中', low: '低' };
+        const variant = row.original.priority === 'high' ? 'danger' : row.original.priority === 'medium' ? 'warning' : 'success';
+        return <Badge variant={variant} size="sm" dot>{priorityLabels[row.original.priority] || row.original.priority}</Badge>;
+      },
+    },
+    {
+      accessorKey: 'status',
+      header: '状态',
+      cell: ({ row }) => {
+        const statusLabels: Record<string, string> = { pending: '待处理', in_progress: '进行中', completed: '已完成' };
+        const variant = row.original.status === 'completed' ? 'success' : row.original.status === 'in_progress' ? 'warning' : 'default';
+        return <Badge variant={variant} size="sm">{statusLabels[row.original.status] || row.original.status}</Badge>;
+      },
+    },
+    {
+      accessorKey: 'dueDate',
+      header: '截止时间',
+      cell: ({ row }) => (
+        <span className="text-gray-500 text-sm">{new Date(row.original.dueDate).toLocaleString()}</span>
+      ),
+    },
+  ];
 
   const consultantTaskColumns: ColumnDef<ConsultantTaskStats, unknown>[] = [
     {
@@ -998,6 +1119,56 @@ export default function Statistics() {
             pageSize={5}
             loading={loading}
             emptyMessage="暂无顾问数据"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-blue-500" />
+              <CardTitle>客户明细</CardTitle>
+            </div>
+            {selectedConsultant && (
+              <Badge variant="primary">
+                已筛选顾问
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table
+            data={customerDetails}
+            columns={customerDetailColumns}
+            pageSize={5}
+            loading={loading}
+            emptyMessage="暂无客户数据"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ListTodo className="h-5 w-5 text-purple-500" />
+              <CardTitle>任务明细</CardTitle>
+            </div>
+            {selectedConsultant && (
+              <Badge variant="primary">
+                已筛选顾问
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table
+            data={taskDetails}
+            columns={taskDetailColumns}
+            pageSize={5}
+            loading={loading}
+            emptyMessage="暂无任务数据"
           />
         </CardContent>
       </Card>

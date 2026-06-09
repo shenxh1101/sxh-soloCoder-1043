@@ -85,6 +85,25 @@ interface StatisticsState {
   getConsultantTaskStats: () => ConsultantTaskStats[];
   getFilteredCustomers: () => Customer[];
   getFilteredContracts: () => Contract[];
+  getFilteredCustomerDetails: () => Array<{
+    id: string;
+    name: string;
+    phone: string;
+    stage: string;
+    intendedCourse: string;
+    source: string;
+    createdAt: string;
+  }>;
+  getFilteredTaskDetails: () => Array<{
+    id: string;
+    title: string;
+    customerName: string;
+    type: string;
+    source: string;
+    dueDate: string;
+    status: string;
+    priority: string;
+  }>;
 }
 
 export const useStatisticsStore = create<StatisticsState>((set, get) => ({
@@ -151,6 +170,54 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
     }
 
     return filtered;
+  },
+
+  getFilteredCustomerDetails: () => {
+    const customers = get().getFilteredCustomers();
+    return customers.map((c) => ({
+      id: c.id,
+      name: c.name,
+      phone: c.phone,
+      stage: c.stage,
+      intendedCourse: c.intendedCourse,
+      source: c.source,
+      createdAt: c.createdAt,
+    }));
+  },
+
+  getFilteredTaskDetails: () => {
+    const customerState = useCustomerStore.getState();
+    const { selectedConsultant } = get();
+    const { tasks, customers } = customerState;
+
+    let filteredTasks = tasks;
+    if (selectedConsultant) {
+      filteredTasks = tasks.filter((t) => t.consultantId === selectedConsultant);
+    }
+
+    const getCustomerName = (customerId: string) => {
+      const customer = customers.find((c) => c.id === customerId);
+      return customer?.name || '未知客户';
+    };
+
+    const typeLabels: Record<string, string> = {
+      phone_followup: '电话跟进',
+      audition_confirm: '试听确认',
+      quotation_followup: '报价跟进',
+      contract_payment: '合同回款',
+      general: '其他任务',
+    };
+
+    return filteredTasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      customerName: getCustomerName(t.customerId),
+      type: typeLabels[t.type] || t.type,
+      source: t.source,
+      dueDate: t.dueDate,
+      status: t.status,
+      priority: t.priority,
+    }));
   },
 
   loadStatisticsData: () => {

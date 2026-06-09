@@ -144,10 +144,36 @@ export default function Schedule() {
   }, [weekTasks, weekDates]);
 
   const handleToggleComplete = (item: ScheduleItem) => {
+    const customerState = useCustomerStore.getState();
+
     if (item.type === 'task') {
       const taskId = item.id.replace('task-', '');
       const isCompleted = item.status === 'completed';
-      updateTask(taskId, { status: isCompleted ? 'pending' : 'completed' });
+      const newStatus = isCompleted ? 'pending' : 'completed';
+      updateTask(taskId, { status: newStatus });
+
+      if (item.source && item.id.startsWith('task-')) {
+        const fullTaskId = item.id.replace('task-', '');
+        const task = customerState.tasks.find(t => t.id === fullTaskId);
+        if (task && task.relatedId) {
+          if (task.source === 'auto_followup') {
+            customerState.updateFollowUp(task.relatedId, { completed: newStatus === 'completed' });
+          } else if (task.source === 'auto_audition') {
+            customerState.updateAudition(task.relatedId, { status: newStatus === 'completed' ? 'completed' : 'scheduled' });
+          } else if (task.source === 'auto_quotation') {
+            if (newStatus === 'completed') {
+              customerState.updateQuotation(task.relatedId, { status: 'accepted' });
+            }
+          } else if (task.source === 'auto_contract') {
+            if (newStatus === 'completed') {
+              const contract = customerState.contracts.find(c => c.id === task.relatedId);
+              if (contract) {
+                customerState.updateContract(task.relatedId, { receivedAmount: contract.totalAmount });
+              }
+            }
+          }
+        }
+      }
     } else if (item.type === 'followUp') {
       const followUpId = item.id.replace('followup-', '');
       const isCompleted = completedItems.has(item.id);
@@ -160,9 +186,15 @@ export default function Schedule() {
         }
         return next;
       });
-      useCustomerStore.getState().updateFollowUp(followUpId, { completed: !isCompleted });
+      customerState.updateFollowUp(followUpId, { completed: !isCompleted });
+    } else if (item.type === 'audition') {
+      const auditionId = item.id.replace('audition-', '');
+      const isCompleted = item.status === 'completed';
+      customerState.updateAudition(auditionId, { status: isCompleted ? 'scheduled' : 'completed' });
     }
+
     loadScheduleData();
+    customerState.loadData();
     setRefreshKey(prev => prev + 1);
   };
 
@@ -197,6 +229,12 @@ export default function Schedule() {
 
     addTask(newTask);
     loadScheduleData();
+    setRefreshKey(prev => prev + 1);
+
+    const taskDate = new Date(newTask.dueDate);
+    if (isToday(taskDate)) {
+      setSelectedDate(new Date());
+    }
 
     setShowAddModal(false);
     setFormData({
