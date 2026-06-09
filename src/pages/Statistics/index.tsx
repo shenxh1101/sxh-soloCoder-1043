@@ -557,6 +557,8 @@ export default function Statistics() {
     getConsultantTaskStats,
     setDateRange,
     dateRange,
+    selectedConsultant,
+    setSelectedConsultant,
   } = useStatisticsStore();
 
   const [timeRange, setTimeRange] = useState<TimeRangeType>('thisMonth');
@@ -608,16 +610,14 @@ export default function Statistics() {
     setDateRange(start, end);
   }, [timeRange, customStartDate, customEndDate, setDateRange]);
 
-  const overallStats = useMemo(() => getOverallStats(), [getOverallStats, refreshKey]);
-  const conversionRates = useMemo(() => getConversionRates(), [getConversionRates, refreshKey]);
-  const sourceAnalysis = useMemo(() => getSourceAnalysis(), [getSourceAnalysis, refreshKey]);
-  const courseStats = useMemo(() => getCourseStats(), [getCourseStats, refreshKey]);
-  const performanceData = useMemo(() => getPerformanceData(6), [getPerformanceData, refreshKey]);
-  const stageDistribution = useMemo(() => getStageDistribution(), [getStageDistribution, refreshKey]);
-  const funnelData = useMemo(() => getFunnelData(), [getFunnelData, refreshKey]);
-  const consultantTaskStats = useMemo(() => getConsultantTaskStats(), [getConsultantTaskStats, refreshKey]);
-
-  const [selectedConsultant, setSelectedConsultant] = useState<string | null>(null);
+  const overallStats = useMemo(() => getOverallStats(), [getOverallStats, refreshKey, selectedConsultant]);
+  const conversionRates = useMemo(() => getConversionRates(), [getConversionRates, refreshKey, selectedConsultant]);
+  const sourceAnalysis = useMemo(() => getSourceAnalysis(), [getSourceAnalysis, refreshKey, selectedConsultant]);
+  const courseStats = useMemo(() => getCourseStats(), [getCourseStats, refreshKey, selectedConsultant]);
+  const performanceData = useMemo(() => getPerformanceData(6), [getPerformanceData, refreshKey, selectedConsultant]);
+  const stageDistribution = useMemo(() => getStageDistribution(), [getStageDistribution, refreshKey, selectedConsultant]);
+  const funnelData = useMemo(() => getFunnelData(), [getFunnelData, refreshKey, selectedConsultant]);
+  const consultantTaskStats = useMemo(() => getConsultantTaskStats(), [getConsultantTaskStats, refreshKey, selectedConsultant]);
 
   const consultantTaskColumns: ColumnDef<ConsultantTaskStats, unknown>[] = [
     {

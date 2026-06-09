@@ -173,19 +173,25 @@ export const mockAuditions: Audition[] = Array.from({ length: 30 }, (_, i) => ({
   status: ['scheduled', 'completed', 'cancelled'][Math.floor(Math.random() * 3)] as 'scheduled' | 'completed' | 'cancelled',
 }));
 
-export const mockQuotations: Quotation[] = Array.from({ length: 20 }, (_, i) => ({
-  id: `quote-${i + 1}`,
-  customerId: `customer-${Math.floor(Math.random() * 55) + 1}`,
-  course: courses[Math.floor(Math.random() * courses.length)],
-  amount: [2980, 3980, 4980, 5980, 7980, 9980, 12800, 15800][Math.floor(Math.random() * 8)],
-  discount: Math.random() > 0.5 ? ['9折', '85折', '立减500', '送课时'][Math.floor(Math.random() * 4)] : '',
-  createdAt: randomDate(45),
-  status: ['draft', 'sent', 'accepted', 'rejected'][Math.floor(Math.random() * 4)] as 'draft' | 'sent' | 'accepted' | 'rejected',
-}));
+export const mockQuotations: Quotation[] = Array.from({ length: 20 }, (_, i) => {
+  const createdAt = randomDate(45);
+  const validUntil = new Date(new Date(createdAt).getTime() + 30 * 24 * 60 * 60 * 1000);
+  return {
+    id: `quote-${i + 1}`,
+    customerId: `customer-${Math.floor(Math.random() * 55) + 1}`,
+    course: courses[Math.floor(Math.random() * courses.length)],
+    amount: [2980, 3980, 4980, 5980, 7980, 9980, 12800, 15800][Math.floor(Math.random() * 8)],
+    discount: Math.random() > 0.5 ? ['9折', '85折', '立减500', '送课时'][Math.floor(Math.random() * 4)] : '',
+    createdAt,
+    validUntil: new Date(validUntil).toISOString(),
+    status: ['draft', 'sent', 'accepted', 'rejected'][Math.floor(Math.random() * 4)] as 'draft' | 'sent' | 'accepted' | 'rejected',
+  };
+});
 
 export const mockContracts: Contract[] = Array.from({ length: 15 }, (_, i) => {
   const totalAmount = [4980, 5980, 7980, 9980, 12800, 15800, 19800, 25800][Math.floor(Math.random() * 8)];
   const receivedAmount = Math.floor(totalAmount * (0.5 + Math.random() * 0.5));
+  const signDate = randomDate(60);
   return {
     id: `contract-${i + 1}`,
     customerId: `customer-${Math.floor(Math.random() * 55) + 1}`,
@@ -193,14 +199,15 @@ export const mockContracts: Contract[] = Array.from({ length: 15 }, (_, i) => {
     course: courses[Math.floor(Math.random() * courses.length)],
     totalAmount,
     receivedAmount,
-    signDate: randomDate(60),
+    signDate,
+    createdAt: signDate,
     status: receivedAmount >= totalAmount ? 'completed' : ['draft', 'signed', 'completed'][Math.floor(Math.random() * 3)] as 'draft' | 'signed' | 'completed' | 'cancelled',
   };
 });
 
 export const mockTasks: Task[] = Array.from({ length: 35 }, (_, i) => {
   const types: Array<'phone_followup' | 'audition_confirm' | 'quotation_followup' | 'contract_payment' | 'general'> = ['phone_followup', 'audition_confirm', 'quotation_followup', 'contract_payment', 'general'];
-  const sources: Array<'manual' | 'auto_audition' | 'auto_contract' | 'auto_followup'> = ['manual', 'auto_audition', 'auto_contract', 'auto_followup'];
+  const sources: Array<'manual' | 'auto_audition' | 'auto_contract' | 'auto_followup' | 'auto_quotation'> = ['manual', 'auto_audition', 'auto_contract', 'auto_followup', 'auto_quotation'];
   return {
     id: `task-${i + 1}`,
     customerId: `customer-${Math.floor(Math.random() * 55) + 1}`,

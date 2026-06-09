@@ -250,6 +250,27 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     set((state) => {
       const quotations = [...state.quotations, quotation];
       setData('crm_quotations', quotations);
+
+      if (!state.hasRelatedTask(quotation.id, 'auto_quotation')) {
+        const customer = state.customers.find((c) => c.id === quotation.customerId);
+        const newTask: Task = {
+          id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          customerId: quotation.customerId,
+          consultantId: customer?.consultantId || '',
+          title: `报价跟进：${customer?.name || '客户'}`,
+          description: `课程：${quotation.course}\n报价金额：¥${quotation.amount.toLocaleString()}\n有效期至：${new Date(quotation.validUntil).toLocaleDateString()}`,
+          dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: 'medium',
+          status: 'pending',
+          type: 'quotation_followup',
+          source: 'auto_quotation',
+          relatedId: quotation.id,
+        };
+        const tasks = [...state.tasks, newTask];
+        setData('crm_tasks', tasks);
+        return { quotations, tasks };
+      }
+
       return { quotations };
     });
   },

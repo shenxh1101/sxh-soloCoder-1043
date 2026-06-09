@@ -116,8 +116,18 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         });
       });
 
+    const autoFollowUpIds = new Set(
+      tasks.filter((t) => t.source === 'auto_followup').map((t) => t.relatedId)
+    );
+    const autoAuditionIds = new Set(
+      tasks.filter((t) => t.source === 'auto_audition').map((t) => t.relatedId)
+    );
+    const autoQuotationIds = new Set(
+      tasks.filter((t) => t.source === 'auto_quotation').map((t) => t.relatedId)
+    );
+
     followUps
-      .filter((f) => isToday(f.remindAt) && !f.completed)
+      .filter((f) => isToday(f.remindAt) && !f.completed && !autoFollowUpIds.has(f.id))
       .forEach((f) => {
         todos.push({
           id: `followup-${f.id}`,
@@ -134,7 +144,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       });
 
     auditions
-      .filter((a) => isToday(a.auditionAt))
+      .filter((a) => isToday(a.auditionAt) && !autoAuditionIds.has(a.id))
       .forEach((a) => {
         todos.push({
           id: `audition-${a.id}`,
@@ -178,8 +188,18 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         });
       });
 
+    const autoFollowUpIds = new Set(
+      tasks.filter((t) => t.source === 'auto_followup').map((t) => t.relatedId)
+    );
+    const autoAuditionIds = new Set(
+      tasks.filter((t) => t.source === 'auto_audition').map((t) => t.relatedId)
+    );
+    const autoQuotationIds = new Set(
+      tasks.filter((t) => t.source === 'auto_quotation').map((t) => t.relatedId)
+    );
+
     followUps
-      .filter((f) => isThisWeek(f.remindAt) && !f.completed)
+      .filter((f) => isThisWeek(f.remindAt) && !f.completed && !autoFollowUpIds.has(f.id))
       .forEach((f) => {
         todos.push({
           id: `followup-${f.id}`,
@@ -196,7 +216,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       });
 
     auditions
-      .filter((a) => isThisWeek(a.auditionAt))
+      .filter((a) => isThisWeek(a.auditionAt) && !autoAuditionIds.has(a.id))
       .forEach((a) => {
         todos.push({
           id: `audition-${a.id}`,
@@ -240,6 +260,16 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
       }
     };
 
+    const autoFollowUpIds = new Set(
+      tasks.filter((t) => t.source === 'auto_followup').map((t) => t.relatedId)
+    );
+    const autoAuditionIds = new Set(
+      tasks.filter((t) => t.source === 'auto_audition').map((t) => t.relatedId)
+    );
+    const autoQuotationIds = new Set(
+      tasks.filter((t) => t.source === 'auto_quotation').map((t) => t.relatedId)
+    );
+
     tasks.forEach((t) => {
       const date = format(new Date(t.dueDate), 'yyyy-MM-dd');
       if (calendarTasks[date] !== undefined) {
@@ -260,7 +290,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     });
 
     followUps
-      .filter((f) => !f.completed)
+      .filter((f) => !f.completed && !autoFollowUpIds.has(f.id))
       .forEach((f) => {
         const date = format(new Date(f.remindAt), 'yyyy-MM-dd');
         if (calendarTasks[date] !== undefined) {
@@ -279,24 +309,26 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         }
       });
 
-    auditions.forEach((a) => {
-      const date = format(new Date(a.auditionAt), 'yyyy-MM-dd');
-      if (calendarTasks[date] !== undefined) {
-        addToCalendar({
-          id: `audition-${a.id}`,
-          type: 'audition',
-          title: `${a.course} - 试听`,
-          time: format(new Date(a.auditionAt), 'HH:mm'),
-          date,
-          priority: 'high',
-          customerName: getCustomerName(customers, a.customerId),
-          customerId: a.customerId,
-          status: a.status,
-          taskType: 'audition_confirm',
-          source: 'auto_audition',
-        });
-      }
-    });
+    auditions
+      .filter((a) => !autoAuditionIds.has(a.id))
+      .forEach((a) => {
+        const date = format(new Date(a.auditionAt), 'yyyy-MM-dd');
+        if (calendarTasks[date] !== undefined) {
+          addToCalendar({
+            id: `audition-${a.id}`,
+            type: 'audition',
+            title: `${a.course} - 试听`,
+            time: format(new Date(a.auditionAt), 'HH:mm'),
+            date,
+            priority: 'high',
+            customerName: getCustomerName(customers, a.customerId),
+            customerId: a.customerId,
+            status: a.status,
+            taskType: 'audition_confirm',
+            source: 'auto_audition',
+          });
+        }
+      });
 
     Object.keys(calendarTasks).forEach((date) => {
       calendarTasks[date].sort((a, b) => a.time.localeCompare(b.time));

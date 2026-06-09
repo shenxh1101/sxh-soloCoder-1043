@@ -121,7 +121,7 @@ export default function Schedule() {
 
   const calendarTasks = useMemo(() => {
     return getCalendarTasks(currentMonth.getFullYear(), currentMonth.getMonth());
-  }, [getCalendarTasks, currentMonth]);
+  }, [getCalendarTasks, currentMonth, refreshKey]);
 
   const monthDates = useMemo(() => {
     return getMonthDates(currentMonth.getFullYear(), currentMonth.getMonth());
@@ -163,6 +163,7 @@ export default function Schedule() {
       useCustomerStore.getState().updateFollowUp(followUpId, { completed: !isCompleted });
     }
     loadScheduleData();
+    setRefreshKey(prev => prev + 1);
   };
 
   const handlePrevMonth = () => {
@@ -277,9 +278,9 @@ export default function Schedule() {
 
   const selectedDateTasks = useMemo(() => {
     const dateKey = format(selectedDate, 'yyyy-MM-dd');
-    const allTasks = [...getTodayTodos(), ...getWeekTasks()];
-    return allTasks.filter((item) => item.date === dateKey);
-  }, [getTodayTodos, getWeekTasks, selectedDate, refreshKey]);
+    const monthTasks = getCalendarTasks(selectedDate.getFullYear(), selectedDate.getMonth());
+    return monthTasks[dateKey] || [];
+  }, [getCalendarTasks, selectedDate, refreshKey]);
 
   return (
     <div className="space-y-6">

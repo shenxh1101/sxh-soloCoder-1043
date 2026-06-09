@@ -59,7 +59,9 @@ interface StatisticsState {
   loading: boolean;
   error: string | null;
   dateRange: { start: string; end: string };
+  selectedConsultant: string | null;
   setDateRange: (start: string, end: string) => void;
+  setSelectedConsultant: (consultantId: string | null) => void;
   loadStatisticsData: () => void;
   getSourceData: () => {
     customers: Customer[];
@@ -81,6 +83,8 @@ interface StatisticsState {
   getStageDistribution: () => Record<CustomerStage, { count: number; percentage: number }>;
   getFunnelData: () => FunnelData[];
   getConsultantTaskStats: () => ConsultantTaskStats[];
+  getFilteredCustomers: () => Customer[];
+  getFilteredContracts: () => Contract[];
 }
 
 export const useStatisticsStore = create<StatisticsState>((set, get) => ({
@@ -90,9 +94,14 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
     start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     end: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
   },
+  selectedConsultant: null,
 
   setDateRange: (start, end) => {
     set({ dateRange: { start, end } });
+  },
+
+  setSelectedConsultant: (consultantId) => {
+    set({ selectedConsultant: consultantId });
   },
 
   getSourceData: () => {
@@ -102,6 +111,46 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
       contracts: customerState.contracts,
       consultants: customerState.consultants,
     };
+  },
+
+  getFilteredCustomers: () => {
+    const { customers } = get().getSourceData();
+    const { selectedConsultant, dateRange } = get();
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+
+    let filtered = customers.filter((c) => {
+      const createdAt = new Date(c.createdAt);
+      return createdAt >= startDate && createdAt <= endDate;
+    });
+
+    if (selectedConsultant) {
+      filtered = filtered.filter((c) => c.consultantId === selectedConsultant);
+    }
+
+    return filtered;
+  },
+
+  getFilteredContracts: () => {
+    const { contracts } = get().getSourceData();
+    const { selectedConsultant, dateRange } = get();
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+
+    let filtered = contracts.filter((c) => {
+      const signDate = new Date(c.signDate);
+      return signDate >= startDate && signDate <= endDate;
+    });
+
+    if (selectedConsultant) {
+      const { customers } = get().getSourceData();
+      const customerIds = new Set(
+        customers.filter((c) => c.consultantId === selectedConsultant).map((c) => c.id)
+      );
+      filtered = filtered.filter((c) => customerIds.has(c.customerId));
+    }
+
+    return filtered;
   },
 
   loadStatisticsData: () => {
@@ -115,10 +164,12 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getConversionRates: () => {
-    const { customers, consultants } = get().getSourceData();
+    const customers = get().getFilteredCustomers();
+    const { consultants } = get().getSourceData();
+    const { selectedConsultant } = get();
     
     const conversionRates = consultants
-      .filter((c) => c.role !== 'admin')
+      .filter((c) => c.role !== 'admin' && (!selectedConsultant || c.id === selectedConsultant))
       .map((consultant) => {
         const consultantCustomers = customers.filter(
           (c) => c.consultantId === consultant.id
@@ -148,7 +199,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getSourceAnalysis: () => {
-    const { customers } = get().getSourceData();
+    const customers = get().getFilteredCustomers();
     const totalCustomers = customers.length;
 
     return SOURCE_OPTIONS.map((sourceOption) => {
@@ -174,7 +225,8 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getCourseStats: () => {
-    const { customers, contracts } = get().getSourceData();
+    const customers = get().getFilteredCustomers();
+    const contracts = get().getFilteredContracts();
 
     return COURSE_OPTIONS.map((course) => {
       const intendedCustomers = customers.filter(
@@ -204,7 +256,12 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
 
   getPerformanceData: (months = 6) => {
     const { contracts, customers } = get().getSourceData();
+    const { selectedConsultant } = get();
     const performance: PerformanceData[] = [];
+
+    const customerIds = selectedConsultant
+      ? new Set(customers.filter((c) => c.consultantId === selectedConsultant).map((c) => c.id))
+      : null;
 
     for (let i = months - 1; i >= 0; i--) {
       const monthDate = subMonths(new Date(), i);
@@ -212,15 +269,23 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
       const monthEnd = endOfMonth(monthDate);
       const monthKey = format(monthDate, 'yyyy-MM');
 
-      const monthContracts = contracts.filter((c) => {
-        const signDate = new Date(c.signDate);
+      let monthContracts = contracts.filter((c) => {
+        const signDate = new Date(c.signDate || c.createdAt);
         return signDate >= monthStart && signDate <= monthEnd;
       });
 
-      const monthNewCustomers = customers.filter((c) => {
+      if (customerIds) {
+        monthContracts = monthContracts.filter((c) => customerIds.has(c.customerId));
+      }
+
+      let monthNewCustomers = customers.filter((c) => {
         const createdAt = new Date(c.createdAt);
         return createdAt >= monthStart && createdAt <= monthEnd;
       });
+
+      if (selectedConsultant) {
+        monthNewCustomers = monthNewCustomers.filter((c) => c.consultantId === selectedConsultant);
+      }
 
       performance.push({
         month: monthKey,
@@ -235,20 +300,8 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getOverallStats: () => {
-    const { customers, contracts } = get().getSourceData();
-    const { dateRange } = get();
-    const startDate = new Date(dateRange.start);
-    const endDate = new Date(dateRange.end);
-
-    const filteredCustomers = customers.filter((c) => {
-      const createdAt = new Date(c.createdAt);
-      return createdAt >= startDate && createdAt <= endDate;
-    });
-
-    const filteredContracts = contracts.filter((c) => {
-      const signDate = new Date(c.signDate);
-      return signDate >= startDate && signDate <= endDate;
-    });
+    const filteredCustomers = get().getFilteredCustomers();
+    const filteredContracts = get().getFilteredContracts();
 
     const totalCustomers = filteredCustomers.length;
     const closedCustomers = filteredCustomers.filter(
@@ -281,8 +334,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getStageDistribution: () => {
-    const { customers } = get().getSourceData();
-    const { dateRange } = get();
+    const customers = get().getFilteredCustomers();
     const stages: CustomerStage[] = [
       'lead',
       'consulting',
@@ -291,15 +343,8 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
       'closed',
       'lost',
     ];
-    const startDate = new Date(dateRange.start);
-    const endDate = new Date(dateRange.end);
 
-    const filteredCustomers = customers.filter((c) => {
-      const createdAt = new Date(c.createdAt);
-      return createdAt >= startDate && createdAt <= endDate;
-    });
-
-    const total = filteredCustomers.length;
+    const total = customers.length;
 
     const distribution = {} as Record<
       CustomerStage,
@@ -307,7 +352,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
     >;
 
     stages.forEach((stage) => {
-      const count = filteredCustomers.filter(
+      const count = customers.filter(
         (c) => c.stage === stage
       ).length;
       distribution[stage] = {
@@ -321,15 +366,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   },
 
   getFunnelData: () => {
-    const { customers } = get().getSourceData();
-    const { dateRange } = get();
-    const startDate = new Date(dateRange.start);
-    const endDate = new Date(dateRange.end);
-
-    const filteredCustomers = customers.filter((c) => {
-      const createdAt = new Date(c.createdAt);
-      return createdAt >= startDate && createdAt <= endDate;
-    });
+    const filteredCustomers = get().getFilteredCustomers();
 
     const total = filteredCustomers.length;
     const funnelStages = ['lead', 'consulting', 'audition', 'quotation', 'closed'];
@@ -357,6 +394,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
   getConsultantTaskStats: () => {
     const customerState = useCustomerStore.getState();
     const { consultants } = get().getSourceData();
+    const { selectedConsultant } = get();
     const { tasks, followUps } = customerState;
 
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -378,7 +416,7 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
     ];
 
     const stats = consultants
-      .filter((c) => c.role !== 'admin')
+      .filter((c) => c.role !== 'admin' && (!selectedConsultant || c.id === selectedConsultant))
       .map((consultant) => {
         const consultantItems = allScheduleItems.filter(
           (item) => item.consultantId === consultant.id

@@ -211,6 +211,7 @@ export default function CustomerDetail() {
     const newFollowUp: FollowUp = {
       id: generateId(),
       customerId: id,
+      consultantId: customer?.consultantId,
       remindAt: new Date(data.remindAt).toISOString(),
       content: data.content,
       completed: false,
@@ -226,6 +227,7 @@ export default function CustomerDetail() {
     const newAudition: Audition = {
       id: generateId(),
       customerId: id,
+      consultantId: customer?.consultantId,
       course: data.course,
       auditionAt: new Date(data.auditionAt).toISOString(),
       teacher: data.teacher,
@@ -275,6 +277,9 @@ export default function CustomerDetail() {
     if (!id) return;
     if (!validateQuotation(data)) return;
     
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + 30);
+    
     const newQuotation: Quotation = {
       id: generateId(),
       customerId: id,
@@ -283,6 +288,7 @@ export default function CustomerDetail() {
       discount: data.discount,
       status: data.status,
       createdAt: new Date().toISOString(),
+      validUntil: validUntil.toISOString(),
     };
     addQuotation(newQuotation);
     setShowModal(null);
@@ -304,6 +310,7 @@ export default function CustomerDetail() {
       totalAmount: data.totalAmount,
       receivedAmount: clampedReceived,
       signDate: new Date(data.signDate).toISOString(),
+      createdAt: new Date().toISOString(),
       status: data.status,
     };
     addContract(newContract);

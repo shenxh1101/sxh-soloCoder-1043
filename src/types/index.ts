@@ -10,7 +10,7 @@ export type CommunicationType = 'phone' | 'wechat' | 'meeting' | 'other';
 
 export type TaskType = 'phone_followup' | 'audition_confirm' | 'quotation_followup' | 'contract_payment' | 'general';
 
-export type TaskSource = 'manual' | 'auto_audition' | 'auto_contract' | 'auto_followup';
+export type TaskSource = 'manual' | 'auto_audition' | 'auto_contract' | 'auto_followup' | 'auto_quotation';
 
 export type AuditionStatus = 'scheduled' | 'completed' | 'cancelled';
 
@@ -74,6 +74,7 @@ export interface Quotation {
   amount: number;
   discount: string;
   createdAt: string;
+  validUntil: string;
   status: QuotationStatus;
 }
 
@@ -85,6 +86,7 @@ export interface Contract {
   totalAmount: number;
   receivedAmount: number;
   signDate: string;
+  createdAt: string;
   status: ContractStatus;
 }
 
@@ -149,6 +151,7 @@ export const TASK_SOURCE_LABELS: Record<TaskSource, string> = {
   auto_audition: '试听安排',
   auto_contract: '合同回款',
   auto_followup: '跟进提醒',
+  auto_quotation: '报价跟进',
 };
 
 export const SOURCE_OPTIONS: { value: CustomerSource; label: string }[] = [
