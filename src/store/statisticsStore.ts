@@ -1,0 +1,301 @@
+import { create } from 'zustand';
+import type { Customer, Contract, Consultant, CustomerSource, CustomerStage } from '../types';
+import { SOURCE_OPTIONS, COURSE_OPTIONS } from '../types';
+import { getData } from '../data/mockData';
+import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
+
+export interface ConversionRateData {
+  consultantId: string;
+  consultantName: string;
+  totalLeads: number;
+  closedDeals: number;
+  conversionRate: number;
+  rank: number;
+}
+
+export interface SourceAnalysisData {
+  source: CustomerSource;
+  sourceName: string;
+  count: number;
+  closedCount: number;
+  conversionRate: number;
+  percentage: number;
+}
+
+export interface CourseStatsData {
+  course: string;
+  intendedCount: number;
+  closedCount: number;
+  conversionRate: number;
+  totalRevenue: number;
+}
+
+export interface PerformanceData {
+  month: string;
+  contractAmount: number;
+  receivedAmount: number;
+  contractCount: number;
+  newCustomers: number;
+}
+
+interface StatisticsState {
+  customers: Customer[];
+  contracts: Contract[];
+  consultants: Consultant[];
+  loading: boolean;
+  error: string | null;
+  dateRange: { start: string; end: string };
+  setDateRange: (start: string, end: string) => void;
+  loadStatisticsData: () => void;
+  getConversionRates: () => ConversionRateData[];
+  getSourceAnalysis: () => SourceAnalysisData[];
+  getCourseStats: () => CourseStatsData[];
+  getPerformanceData: (months?: number) => PerformanceData[];
+  getOverallStats: () => {
+    totalCustomers: number;
+    totalRevenue: number;
+    totalReceived: number;
+    overallConversionRate: number;
+    avgContractAmount: number;
+    pendingAmount: number;
+  };
+  getStageDistribution: () => Record<CustomerStage, { count: number; percentage: number }>;
+}
+
+export const useStatisticsStore = create<StatisticsState>((set, get) => ({
+  customers: [],
+  contracts: [],
+  consultants: [],
+  loading: false,
+  error: null,
+  dateRange: {
+    start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+    end: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
+  },
+
+  setDateRange: (start, end) => {
+    set({ dateRange: { start, end } });
+  },
+
+  loadStatisticsData: () => {
+    set({ loading: true });
+    try {
+      const customers = getData<Customer>('crm_customers');
+      const contracts = getData<Contract>('crm_contracts');
+      const consultants = getData<Consultant>('crm_consultants');
+
+      set({
+        customers,
+        contracts,
+        consultants,
+        loading: false,
+      });
+    } catch (error) {
+      set({ error: '统计数据加载失败', loading: false });
+    }
+  },
+
+  getConversionRates: () => {
+    const { customers, consultants } = get();
+    
+    const conversionRates = consultants
+      .filter((c) => c.role !== 'admin')
+      .map((consultant) => {
+        const consultantCustomers = customers.filter(
+          (c) => c.consultantId === consultant.id
+        );
+        const totalLeads = consultantCustomers.length;
+        const closedDeals = consultantCustomers.filter(
+          (c) => c.stage === 'closed'
+        ).length;
+        const conversionRate = totalLeads > 0 ? (closedDeals / totalLeads) * 100 : 0;
+
+        return {
+          consultantId: consultant.id,
+          consultantName: consultant.name,
+          totalLeads,
+          closedDeals,
+          conversionRate: Math.round(conversionRate * 100) / 100,
+          rank: 0,
+        };
+      })
+      .sort((a, b) => b.conversionRate - a.conversionRate)
+      .map((item, index) => ({
+        ...item,
+        rank: index + 1,
+      }));
+
+    return conversionRates;
+  },
+
+  getSourceAnalysis: () => {
+    const { customers } = get();
+    const totalCustomers = customers.length;
+
+    return SOURCE_OPTIONS.map((sourceOption) => {
+      const sourceCustomers = customers.filter(
+        (c) => c.source === sourceOption.value
+      );
+      const count = sourceCustomers.length;
+      const closedCount = sourceCustomers.filter(
+        (c) => c.stage === 'closed'
+      ).length;
+      const conversionRate = count > 0 ? (closedCount / count) * 100 : 0;
+      const percentage = totalCustomers > 0 ? (count / totalCustomers) * 100 : 0;
+
+      return {
+        source: sourceOption.value,
+        sourceName: sourceOption.label,
+        count,
+        closedCount,
+        conversionRate: Math.round(conversionRate * 100) / 100,
+        percentage: Math.round(percentage * 100) / 100,
+      };
+    });
+  },
+
+  getCourseStats: () => {
+    const { customers, contracts } = get();
+
+    return COURSE_OPTIONS.map((course) => {
+      const intendedCustomers = customers.filter(
+        (c) => c.intendedCourse === course
+      );
+      const intendedCount = intendedCustomers.length;
+      const closedCount = intendedCustomers.filter(
+        (c) => c.stage === 'closed'
+      ).length;
+      const conversionRate = intendedCount > 0 ? (closedCount / intendedCount) * 100 : 0;
+
+      const courseContracts = contracts.filter((c) => c.course === course);
+      const totalRevenue = courseContracts.reduce(
+        (sum, c) => sum + c.totalAmount,
+        0
+      );
+
+      return {
+        course,
+        intendedCount,
+        closedCount,
+        conversionRate: Math.round(conversionRate * 100) / 100,
+        totalRevenue,
+      };
+    }).sort((a, b) => b.intendedCount - a.intendedCount);
+  },
+
+  getPerformanceData: (months = 6) => {
+    const { contracts, customers } = get();
+    const performance: PerformanceData[] = [];
+
+    for (let i = months - 1; i >= 0; i--) {
+      const monthDate = subMonths(new Date(), i);
+      const monthStart = startOfMonth(monthDate);
+      const monthEnd = endOfMonth(monthDate);
+      const monthKey = format(monthDate, 'yyyy-MM');
+
+      const monthContracts = contracts.filter((c) => {
+        const signDate = new Date(c.signDate);
+        return signDate >= monthStart && signDate <= monthEnd;
+      });
+
+      const monthNewCustomers = customers.filter((c) => {
+        const createdAt = new Date(c.createdAt);
+        return createdAt >= monthStart && createdAt <= monthEnd;
+      });
+
+      performance.push({
+        month: monthKey,
+        contractAmount: monthContracts.reduce((sum, c) => sum + c.totalAmount, 0),
+        receivedAmount: monthContracts.reduce((sum, c) => sum + c.receivedAmount, 0),
+        contractCount: monthContracts.length,
+        newCustomers: monthNewCustomers.length,
+      });
+    }
+
+    return performance;
+  },
+
+  getOverallStats: () => {
+    const { customers, contracts, dateRange } = get();
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+
+    const filteredCustomers = customers.filter((c) => {
+      const createdAt = new Date(c.createdAt);
+      return createdAt >= startDate && createdAt <= endDate;
+    });
+
+    const filteredContracts = contracts.filter((c) => {
+      const signDate = new Date(c.signDate);
+      return signDate >= startDate && signDate <= endDate;
+    });
+
+    const totalCustomers = filteredCustomers.length;
+    const closedCustomers = filteredCustomers.filter(
+      (c) => c.stage === 'closed'
+    ).length;
+    const totalRevenue = filteredContracts.reduce(
+      (sum, c) => sum + c.totalAmount,
+      0
+    );
+    const totalReceived = filteredContracts.reduce(
+      (sum, c) => sum + c.receivedAmount,
+      0
+    );
+    const overallConversionRate =
+      totalCustomers > 0 ? (closedCustomers / totalCustomers) * 100 : 0;
+    const avgContractAmount =
+      filteredContracts.length > 0
+        ? totalRevenue / filteredContracts.length
+        : 0;
+
+    return {
+      totalCustomers,
+      totalRevenue,
+      totalReceived,
+      overallConversionRate:
+        Math.round(overallConversionRate * 100) / 100,
+      avgContractAmount: Math.round(avgContractAmount * 100) / 100,
+      pendingAmount: totalRevenue - totalReceived,
+    };
+  },
+
+  getStageDistribution: () => {
+    const { customers, dateRange } = get();
+    const stages: CustomerStage[] = [
+      'lead',
+      'consulting',
+      'audition',
+      'quotation',
+      'closed',
+      'lost',
+    ];
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+
+    const filteredCustomers = customers.filter((c) => {
+      const createdAt = new Date(c.createdAt);
+      return createdAt >= startDate && createdAt <= endDate;
+    });
+
+    const total = filteredCustomers.length;
+
+    const distribution = {} as Record<
+      CustomerStage,
+      { count: number; percentage: number }
+    >;
+
+    stages.forEach((stage) => {
+      const count = filteredCustomers.filter(
+        (c) => c.stage === stage
+      ).length;
+      distribution[stage] = {
+        count,
+        percentage:
+          total > 0 ? Math.round((count / total) * 100) / 100 : 0,
+      };
+    });
+
+    return distribution;
+  },
+}));

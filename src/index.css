@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    font-weight: 400;
+    color-scheme: light;
+    color: #212121;
+    background-color: #f5f5f5;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+  }
+
+  ::selection {
+    background-color: #1976d2;
+    color: white;
+  }
+}
+
+@layer components {
+  .page-container {
+    @apply max-w-[1400px] mx-auto;
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5;
+  }
+
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors;
+  }
+
+  .btn-icon-active {
+    @apply bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700;
+  }
+
+  .status-dot {
+    @apply h-2 w-2 rounded-full;
+  }
+
+  .stage-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md;
+  }
+
+  .priority-high {
+    @apply bg-red-100 text-red-700 border border-red-200;
+  }
+
+  .priority-medium {
+    @apply bg-yellow-100 text-yellow-700 border border-yellow-200;
+  }
+
+  .priority-low {
+    @apply bg-green-100 text-green-700 border border-green-200;
+  }
+
+  .timeline-line {
+    @apply absolute left-[11px] top-6 bottom-0 w-px bg-gray-200;
+  }
+
+  .timeline-dot {
+    @apply absolute left-0 top-1.5 h-6 w-6 rounded-full border-2 border-white flex items-center justify-center;
+  }
+
+  .kanban-column {
+    @apply flex-shrink-0 w-[300px] md:w-[320px];
+  }
+
+  .kanban-card {
+    @apply bg-white rounded-lg p-4 shadow-card border border-gray-100 cursor-grab active:cursor-grabbing transition-all duration-200;
+  }
+
+  .kanban-card-dragging {
+    @apply opacity-50 scale-[0.98] rotate-1 shadow-xl;
+  }
+
+  .drop-zone-active {
+    @apply bg-blue-50 border-2 border-dashed border-blue-300;
+  }
+
+  .stat-card {
+    @apply bg-white rounded-xl p-5 shadow-card border border-gray-100 hover:shadow-card-hover transition-shadow;
+  }
+
+  .stat-icon {
+    @apply h-10 w-10 rounded-xl flex items-center justify-center;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
+  }
+
+  .form-input {
+    @apply w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg shadow-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .form-input-error {
+    @apply border-red-500 focus:ring-red-500;
+  }
+
+  .table-header {
+    @apply px-4 py-3 text-left text-sm font-medium text-gray-700 bg-gray-50 border-b border-gray-200;
+  }
+
+  .table-cell {
+    @apply px-4 py-3 text-sm text-gray-900 border-b border-gray-100;
+  }
+
+  .table-row-hover {
+    @apply hover:bg-gray-50 transition-colors;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-ellipsis-1 {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .text-ellipsis-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+}
