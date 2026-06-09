@@ -43,6 +43,7 @@ interface CustomerState {
   updateContract: (id: string, updates: Partial<Contract>) => void;
   addTask: (task: Task) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
+  hasRelatedTask: (relatedId: string, source: string) => boolean;
   getCustomerById: (id: string) => Customer | undefined;
   getCustomerCommunications: (customerId: string) => Communication[];
   getCustomerFollowUps: (customerId: string) => FollowUp[];
@@ -171,6 +172,27 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     set((state) => {
       const followUps = [...state.followUps, followUp];
       setData('crm_followups', followUps);
+
+      if (!state.hasRelatedTask(followUp.id, 'auto_followup')) {
+        const customer = state.customers.find((c) => c.id === followUp.customerId);
+        const newTask: Task = {
+          id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          customerId: followUp.customerId,
+          consultantId: followUp.consultantId || customer?.consultantId || '',
+          title: `跟进提醒：${customer?.name || '客户'}`,
+          description: followUp.content,
+          dueDate: followUp.remindAt,
+          priority: followUp.priority,
+          status: 'pending',
+          type: 'phone_followup',
+          source: 'auto_followup',
+          relatedId: followUp.id,
+        };
+        const tasks = [...state.tasks, newTask];
+        setData('crm_tasks', tasks);
+        return { followUps, tasks };
+      }
+
       return { followUps };
     });
   },
@@ -189,6 +211,27 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     set((state) => {
       const auditions = [...state.auditions, audition];
       setData('crm_auditions', auditions);
+
+      if (!state.hasRelatedTask(audition.id, 'auto_audition')) {
+        const customer = state.customers.find((c) => c.id === audition.customerId);
+        const newTask: Task = {
+          id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          customerId: audition.customerId,
+          consultantId: audition.consultantId || customer?.consultantId || '',
+          title: `试听确认：${customer?.name || '客户'}`,
+          description: `课程：${audition.course}\n时间：${new Date(audition.auditionAt).toLocaleString()}\n讲师：${audition.teacher}`,
+          dueDate: audition.auditionAt,
+          priority: 'high',
+          status: 'pending',
+          type: 'audition_confirm',
+          source: 'auto_audition',
+          relatedId: audition.id,
+        };
+        const tasks = [...state.tasks, newTask];
+        setData('crm_tasks', tasks);
+        return { auditions, tasks };
+      }
+
       return { auditions };
     });
   },
@@ -225,6 +268,28 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
     set((state) => {
       const contracts = [...state.contracts, contract];
       setData('crm_contracts', contracts);
+
+      const remainingAmount = contract.totalAmount - contract.receivedAmount;
+      if (remainingAmount > 0 && !state.hasRelatedTask(contract.id, 'auto_contract')) {
+        const customer = state.customers.find((c) => c.id === contract.customerId);
+        const newTask: Task = {
+          id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          customerId: contract.customerId,
+          consultantId: customer?.consultantId || '',
+          title: `合同回款：${customer?.name || '客户'}`,
+          description: `合同金额：¥${contract.totalAmount.toLocaleString()}\n已收：¥${contract.receivedAmount.toLocaleString()}\n待回款：¥${remainingAmount.toLocaleString()}`,
+          dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: 'high',
+          status: 'pending',
+          type: 'contract_payment',
+          source: 'auto_contract',
+          relatedId: contract.id,
+        };
+        const tasks = [...state.tasks, newTask];
+        setData('crm_tasks', tasks);
+        return { contracts, tasks };
+      }
+
       return { contracts };
     });
   },
@@ -245,6 +310,11 @@ export const useCustomerStore = create<CustomerState>((set, get) => ({
       setData('crm_tasks', tasks);
       return { tasks };
     });
+  },
+
+  hasRelatedTask: (relatedId, source) => {
+    const state = get();
+    return state.tasks.some((t) => t.relatedId === relatedId && t.source === source);
   },
 
   updateTask: (id, updates) => {

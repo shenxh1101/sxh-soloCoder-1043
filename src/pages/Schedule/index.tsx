@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
   List,
@@ -14,6 +15,7 @@ import {
   MessageSquare,
   Users,
   User,
+  ExternalLink,
 } from 'lucide-react';
 import { format, isToday, isSameDay } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -29,7 +31,16 @@ import Empty from '@/components/Empty';
 import { useScheduleStore, ScheduleItem } from '@/store/scheduleStore';
 import { useCustomerStore } from '@/store/customerStore';
 import { getWeekDates, getMonthDates, isOverdue } from '@/utils/date';
-import { Priority, PRIORITY_OPTIONS, COMMUNICATION_TYPE_OPTIONS, Task } from '@/types';
+import {
+  Priority,
+  PRIORITY_OPTIONS,
+  COMMUNICATION_TYPE_OPTIONS,
+  Task,
+  TaskType,
+  TASK_TYPE_OPTIONS,
+  TASK_SOURCE_LABELS,
+  TaskSource,
+} from '@/types';
 import { cn } from '@/lib/utils';
 
 type ViewMode = 'list' | 'calendar';
@@ -43,19 +54,8 @@ const STAT_CARDS = [
 
 const WEEKDAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
-const TYPE_ICONS: Record<string, typeof Video> = {
-  task: CheckCircle2,
-  followUp: MessageSquare,
-  audition: Video,
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  task: '任务',
-  followUp: '跟进',
-  audition: '试听',
-};
-
 export default function Schedule() {
+  const navigate = useNavigate();
   const {
     loadScheduleData,
     getTodayTodos,
@@ -77,6 +77,7 @@ export default function Schedule() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDayDetailModal, setShowDayDetailModal] = useState(false);
   const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     title: '',
@@ -86,7 +87,9 @@ export default function Schedule() {
     communicationType: 'phone' as const,
     customerId: '',
     consultantId: '',
+    type: 'general' as TaskType,
   });
+  const [formErrors, setFormErrors] = useState<{ title?: string; remindAt?: string }>({});
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -172,11 +175,11 @@ export default function Schedule() {
 
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
-    setViewMode('list');
+    setShowDayDetailModal(true);
   };
 
   const handleAddTask = () => {
-    if (!formData.title.trim()) return;
+    if (!validateForm()) return;
 
     const newTask: Task = {
       id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -187,6 +190,8 @@ export default function Schedule() {
       dueDate: new Date(formData.remindAt).toISOString(),
       priority: formData.priority,
       status: 'pending',
+      type: formData.type,
+      source: 'manual',
     };
 
     addTask(newTask);
@@ -201,7 +206,9 @@ export default function Schedule() {
       communicationType: 'phone',
       customerId: '',
       consultantId: '',
+      type: 'general',
     });
+    setFormErrors({});
   };
 
   const getPriorityBadge = (priority?: string) => {
@@ -211,9 +218,12 @@ export default function Schedule() {
     return <Badge variant={variant} dot>{option.label}</Badge>;
   };
 
-  const getTypeIcon = (type: string) => {
-    const Icon = TYPE_ICONS[type] || CheckCircle2;
-    return <Icon className="h-4 w-4" />;
+  const getTaskTypeInfo = (type?: string, source?: string) => {
+    if (type) {
+      const typeInfo = TASK_TYPE_OPTIONS.find((t) => t.value === type);
+      if (typeInfo) return typeInfo;
+    }
+    return TASK_TYPE_OPTIONS[TASK_TYPE_OPTIONS.length - 1];
   };
 
   const getItemBackgroundColor = (item: ScheduleItem) => {
@@ -236,6 +246,40 @@ export default function Schedule() {
     if (type === 'meeting') return <Users className="h-4 w-4" />;
     return <Video className="h-4 w-4" />;
   };
+
+  const getSourceBadge = (source?: string) => {
+    if (!source || source === 'manual') return null;
+    const label = TASK_SOURCE_LABELS[source as TaskSource];
+    return (
+      <Badge variant="secondary" size="sm" className="text-xs">
+        {label}
+      </Badge>
+    );
+  };
+
+  const handleGoToCustomer = (customerId?: string) => {
+    if (customerId) {
+      navigate(`/customers/${customerId}`);
+    }
+  };
+
+  const validateForm = () => {
+    const errors: { title?: string; remindAt?: string } = {};
+    if (!formData.title.trim()) {
+      errors.title = '请输入任务标题';
+    }
+    if (!formData.remindAt) {
+      errors.remindAt = '请选择提醒时间';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const selectedDateTasks = useMemo(() => {
+    const dateKey = format(selectedDate, 'yyyy-MM-dd');
+    const allTasks = [...getTodayTodos(), ...getWeekTasks()];
+    return allTasks.filter((item) => item.date === dateKey);
+  }, [getTodayTodos, getWeekTasks, selectedDate, refreshKey]);
 
   return (
     <div className="space-y-6">
@@ -347,10 +391,16 @@ export default function Schedule() {
                                 <span className="text-sm font-semibold text-gray-900">
                                   {item.time}
                                 </span>
-                                <Tag variant="primary" className="text-xs">
-                                  {getTypeIcon(item.type)}
-                                  {TYPE_LABELS[item.type]}
-                                </Tag>
+                                {(() => {
+                                  const typeInfo = getTaskTypeInfo(item.taskType, item.source);
+                                  return (
+                                    <Tag variant="primary" className="text-xs" style={{ backgroundColor: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}30` }}>
+                                      <span className="mr-1">{typeInfo.icon}</span>
+                                      {typeInfo.label}
+                                    </Tag>
+                                  );
+                                })()}
+                                {getSourceBadge(item.source)}
                                 {getPriorityBadge(item.priority)}
                                 {isItemOverdue && !isCompleted && (
                                   <Badge variant="danger" dot>逾期</Badge>
@@ -363,9 +413,23 @@ export default function Schedule() {
                                 {item.title}
                               </h4>
                               {item.customerName && (
-                                <p className="mt-1 text-sm text-gray-500">
-                                  客户：{item.customerName}
-                                </p>
+                                <div className="mt-1 flex items-center gap-2">
+                                  <User className="h-3 w-3 text-gray-400" />
+                                  <p className="text-sm text-gray-500">
+                                    {item.customerName}
+                                  </p>
+                                  {item.customerId && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleGoToCustomer(item.customerId);
+                                      }}
+                                      className="text-blue-500 hover:text-blue-700 transition-colors"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                    </button>
+                                  )}
+                                </div>
                               )}
                               {item.content && (
                                 <p className="mt-1 text-sm text-gray-500">{item.content}</p>
@@ -437,21 +501,19 @@ export default function Schedule() {
                         )}
                       </div>
                       <div className="mt-1 space-y-1 overflow-hidden">
-                        {dayTasks.slice(0, 2).map((task) => (
-                          <div
-                            key={task.id}
-                            className={cn(
-                              'text-xs truncate px-1 py-0.5 rounded',
-                              task.priority === 'high'
-                                ? 'bg-red-100 text-red-700'
-                                : task.priority === 'medium'
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-gray-100 text-gray-700'
-                            )}
-                          >
-                            {task.time} {task.title}
-                          </div>
-                        ))}
+                        {dayTasks.slice(0, 2).map((task) => {
+                          const typeInfo = getTaskTypeInfo(task.taskType, task.source);
+                          return (
+                            <div
+                              key={task.id}
+                              className="text-xs truncate px-1 py-0.5 rounded"
+                              style={{ backgroundColor: `${typeInfo.color}15`, color: typeInfo.color }}
+                            >
+                              <span className="mr-0.5">{typeInfo.icon}</span>
+                              {task.time} {task.title}
+                            </div>
+                          );
+                        })}
                         {dayTasks.length > 2 && (
                           <div className="text-xs text-gray-500 px-1">
                             +{dayTasks.length - 2} 更多
@@ -556,11 +618,38 @@ export default function Schedule() {
         }
       >
         <div className="space-y-4">
+          <div>
+            <label className="block mb-1.5 text-sm font-medium text-gray-700">
+              任务类型
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {TASK_TYPE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, type: option.value })}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors',
+                    formData.type === option.value
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                  )}
+                >
+                  <span>{option.icon}</span>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Input
             label="任务标题"
             placeholder="请输入任务标题"
             value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            onChange={(e) => {
+              setFormData({ ...formData, title: e.target.value });
+              if (formErrors.title) setFormErrors({ ...formErrors, title: undefined });
+            }}
+            error={formErrors.title}
           />
           <Textarea
             label="任务内容"
@@ -574,7 +663,11 @@ export default function Schedule() {
               label="提醒时间"
               type="datetime-local"
               value={formData.remindAt}
-              onChange={(e) => setFormData({ ...formData, remindAt: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, remindAt: e.target.value });
+                if (formErrors.remindAt) setFormErrors({ ...formErrors, remindAt: undefined });
+              }}
+              error={formErrors.remindAt}
             />
             <Select
               label="优先级"
@@ -620,6 +713,96 @@ export default function Schedule() {
               ))}
             </div>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={showDayDetailModal}
+        onClose={() => setShowDayDetailModal(false)}
+        title={`${format(selectedDate, 'yyyy年MM月dd日 EEEE', { locale: zhCN })} 安排详情`}
+        size="lg"
+      >
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+          {selectedDateTasks.length === 0 ? (
+            <Empty description="当天暂无安排" />
+          ) : (
+            <div className="space-y-3">
+              {selectedDateTasks.map((item) => {
+                const isCompleted = isItemCompleted(item);
+                const isItemOverdue = isOverdue(`${item.date}T${item.time}`);
+                const typeInfo = getTaskTypeInfo(item.taskType, item.source);
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'p-4 rounded-lg border transition-all hover:shadow-md',
+                      getItemBackgroundColor(item),
+                      isCompleted ? 'border-gray-200' : 'border-gray-200 hover:border-blue-300',
+                      isItemOverdue && !isCompleted && 'border-red-300'
+                    )}
+                  >
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => handleToggleComplete(item)}
+                        className={cn(
+                          'mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0',
+                          isCompleted
+                            ? 'bg-green-500 border-green-500 text-white'
+                            : 'border-gray-300 hover:border-blue-400'
+                        )}
+                      >
+                        {isCompleted && <Check className="h-3 w-3" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-gray-900">
+                            {item.time}
+                          </span>
+                          <Tag variant="primary" className="text-xs" style={{ backgroundColor: `${typeInfo.color}15`, color: typeInfo.color, borderColor: `${typeInfo.color}30` }}>
+                            <span className="mr-1">{typeInfo.icon}</span>
+                            {typeInfo.label}
+                          </Tag>
+                          {getSourceBadge(item.source)}
+                          {getPriorityBadge(item.priority)}
+                          {isItemOverdue && !isCompleted && (
+                            <Badge variant="danger" dot>逾期</Badge>
+                          )}
+                        </div>
+                        <h4 className={cn(
+                          'mt-2 text-base font-medium',
+                          isCompleted ? 'text-gray-400 line-through' : 'text-gray-900'
+                        )}>
+                          {item.title}
+                        </h4>
+                        {item.customerName && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <User className="h-4 w-4 text-gray-400" />
+                            <p className="text-sm text-gray-600">
+                              {item.customerName}
+                            </p>
+                            {item.customerId && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleGoToCustomer(item.customerId)}
+                                className="h-7 px-2 text-xs text-blue-500 hover:text-blue-700"
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                查看客户
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        {item.content && (
+                          <p className="mt-2 text-sm text-gray-500 whitespace-pre-line">{item.content}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </Modal>
     </div>

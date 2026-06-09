@@ -42,7 +42,7 @@ import { Select, type SelectOption } from '@/components/ui/Select';
 import { Table } from '@/components/ui/Table';
 import type { ColumnDef } from '@tanstack/react-table';
 import { useStatisticsStore } from '@/store/statisticsStore';
-import type { ConversionRateData, SourceAnalysisData, CourseStatsData, PerformanceData } from '@/store/statisticsStore';
+import type { ConversionRateData, SourceAnalysisData, CourseStatsData, PerformanceData, FunnelData, ConsultantTaskStats } from '@/store/statisticsStore';
 import { STAGE_COLUMNS } from '@/types';
 import type { CustomerStage } from '@/types';
 import { cn } from '@/lib/utils';
@@ -206,9 +206,77 @@ function ConversionChart({ data }: { data: ConversionRateData[] }) {
           }}
           formatter={(value: number) => [`${value.toFixed(2)}%`, '转化率']}
         />
-        <Bar dataKey="转化率" shape={<CustomBar />} radius={[4, 4, 0, 0]} />
+        <Bar dataKey="转化率" shape={CustomBar} radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+function FunnelChart({ data }: { data: FunnelData[] }) {
+  const maxCount = Math.max(...data.map((d) => d.count));
+
+  return (
+    <div className="flex flex-col lg:flex-row items-center gap-8">
+      <div className="w-full lg:w-1/2 space-y-4">
+        {data.map((item, index) => {
+          const widthPercent = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
+          return (
+            <div key={item.stage} className="relative">
+              <div className="flex items-center gap-4 mb-2">
+                <div className="w-20 text-sm font-medium text-gray-700">{item.stage}</div>
+                <div className="flex-1 h-12 rounded-lg overflow-hidden" style={{ backgroundColor: `${item.color}15` }}>
+                  <div
+                    className="h-full rounded-lg transition-all duration-500 flex items-center justify-between px-4"
+                    style={{
+                      width: `${widthPercent}%`,
+                      backgroundColor: item.color,
+                      minWidth: '80px',
+                    }}
+                  >
+                    <span className="text-white font-semibold">{item.count} 人</span>
+                  </div>
+                </div>
+                <div className="w-24 text-right">
+                  {index > 0 && (
+                    <Badge variant="secondary" size="sm">
+                      转化 {item.conversionRate}%
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              {index < data.length - 1 && (
+                <div className="flex justify-center">
+                  <div className="w-0.5 h-4 bg-gray-200" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="w-full lg:w-1/2">
+        <div className="grid grid-cols-2 gap-4">
+          {data.map((item, index) => (
+            <Card key={item.stage} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  <div>
+                    <p className="text-sm text-gray-500">{item.stage}</p>
+                    <p className="text-xl font-bold text-gray-900">{item.count}</p>
+                    {index > 0 && (
+                      <p className="text-xs text-gray-400">转化 {item.conversionRate}%</p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -485,6 +553,8 @@ export default function Statistics() {
     getCourseStats,
     getPerformanceData,
     getStageDistribution,
+    getFunnelData,
+    getConsultantTaskStats,
     setDateRange,
     dateRange,
   } = useStatisticsStore();
@@ -544,6 +614,101 @@ export default function Statistics() {
   const courseStats = useMemo(() => getCourseStats(), [getCourseStats, refreshKey]);
   const performanceData = useMemo(() => getPerformanceData(6), [getPerformanceData, refreshKey]);
   const stageDistribution = useMemo(() => getStageDistribution(), [getStageDistribution, refreshKey]);
+  const funnelData = useMemo(() => getFunnelData(), [getFunnelData, refreshKey]);
+  const consultantTaskStats = useMemo(() => getConsultantTaskStats(), [getConsultantTaskStats, refreshKey]);
+
+  const [selectedConsultant, setSelectedConsultant] = useState<string | null>(null);
+
+  const consultantTaskColumns: ColumnDef<ConsultantTaskStats, unknown>[] = [
+    {
+      accessorKey: 'consultantName',
+      header: '顾问',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+            <UserCheck className="h-4 w-4 text-blue-600" />
+          </div>
+          <span className="font-medium text-gray-900">{row.original.consultantName}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'totalTasks',
+      header: '本周任务',
+      cell: ({ row }) => (
+        <Badge variant="primary" size="sm">
+          {row.original.totalTasks} 项
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: 'completedTasks',
+      header: '已完成',
+      cell: ({ row }) => (
+        <Badge variant="success" size="sm">
+          {row.original.completedTasks} 项
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: 'overdueTasks',
+      header: '逾期',
+      cell: ({ row }) => (
+        <Badge variant={row.original.overdueTasks > 0 ? 'danger' : 'secondary'} size="sm">
+          {row.original.overdueTasks} 项
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: 'completionRate',
+      header: '完成率',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full',
+                row.original.completionRate >= 80
+                  ? 'bg-green-500'
+                  : row.original.completionRate >= 50
+                  ? 'bg-yellow-500'
+                  : 'bg-red-500'
+              )}
+              style={{ width: `${Math.min(row.original.completionRate, 100)}%` }}
+            />
+          </div>
+          <span className="text-sm font-medium text-gray-700">
+            {formatPercent(row.original.completionRate)}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '操作',
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (selectedConsultant === row.original.consultantId) {
+              setSelectedConsultant(null);
+            } else {
+              setSelectedConsultant(row.original.consultantId);
+            }
+          }}
+          className={cn(
+            'h-7 px-2 text-xs',
+            selectedConsultant === row.original.consultantId
+              ? 'text-blue-600 bg-blue-50'
+              : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+          )}
+        >
+          {selectedConsultant === row.original.consultantId ? '取消筛选' : '筛选查看'}
+        </Button>
+      ),
+    },
+  ];
 
   const courseColumns: ColumnDef<CourseStatsData, unknown>[] = [
     {
@@ -785,6 +950,55 @@ export default function Statistics() {
           ) : (
             <StageDistributionChart data={stageDistribution} />
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              <CardTitle>转化漏斗</CardTitle>
+            </div>
+            {selectedConsultant && (
+              <Badge variant="primary">
+                已筛选顾问
+                <button
+                  onClick={() => setSelectedConsultant(null)}
+                  className="ml-2 hover:text-white/80"
+                >
+                  ×
+                </button>
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="h-80 flex items-center justify-center text-gray-500">
+              加载中...
+            </div>
+          ) : (
+            <FunnelChart data={funnelData} />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-cyan-500" />
+            <CardTitle>顾问任务完成情况（本周）</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table
+            data={consultantTaskStats}
+            columns={consultantTaskColumns}
+            pageSize={5}
+            loading={loading}
+            emptyMessage="暂无顾问数据"
+          />
         </CardContent>
       </Card>
     </div>

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { Customer, Contract, Consultant, CustomerSource, CustomerStage } from '../types';
-import { SOURCE_OPTIONS, COURSE_OPTIONS } from '../types';
+import { SOURCE_OPTIONS, COURSE_OPTIONS, STAGE_COLUMNS } from '../types';
 import { useCustomerStore } from './customerStore';
-import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, format, startOfWeek, endOfWeek, isWithinInterval } from 'date-fns';
 
 export interface ConversionRateData {
   consultantId: string;
@@ -38,6 +38,23 @@ export interface PerformanceData {
   newCustomers: number;
 }
 
+export interface FunnelData {
+  stage: string;
+  count: number;
+  conversionRate: number;
+  color: string;
+}
+
+export interface ConsultantTaskStats {
+  consultantId: string;
+  consultantName: string;
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  overdueTasks: number;
+  completionRate: number;
+}
+
 interface StatisticsState {
   loading: boolean;
   error: string | null;
@@ -62,6 +79,8 @@ interface StatisticsState {
     pendingAmount: number;
   };
   getStageDistribution: () => Record<CustomerStage, { count: number; percentage: number }>;
+  getFunnelData: () => FunnelData[];
+  getConsultantTaskStats: () => ConsultantTaskStats[];
 }
 
 export const useStatisticsStore = create<StatisticsState>((set, get) => ({
@@ -299,5 +318,98 @@ export const useStatisticsStore = create<StatisticsState>((set, get) => ({
     });
 
     return distribution;
+  },
+
+  getFunnelData: () => {
+    const { customers } = get().getSourceData();
+    const { dateRange } = get();
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+
+    const filteredCustomers = customers.filter((c) => {
+      const createdAt = new Date(c.createdAt);
+      return createdAt >= startDate && createdAt <= endDate;
+    });
+
+    const total = filteredCustomers.length;
+    const funnelStages = ['lead', 'consulting', 'audition', 'quotation', 'closed'];
+
+    let prevCount = total;
+    const funnelData = funnelStages.map((stage, index) => {
+      const stageInfo = STAGE_COLUMNS.find((s) => s.id === stage)!;
+      const count = filteredCustomers.filter((c) => {
+        const stageOrder = funnelStages.indexOf(c.stage);
+        return stageOrder >= index;
+      }).length;
+      const conversionRate = prevCount > 0 ? (count / prevCount) * 100 : 0;
+      prevCount = count;
+      return {
+        stage: stageInfo.title,
+        count,
+        conversionRate: Math.round(conversionRate * 100) / 100,
+        color: stageInfo.color,
+      };
+    });
+
+    return funnelData;
+  },
+
+  getConsultantTaskStats: () => {
+    const customerState = useCustomerStore.getState();
+    const { consultants } = get().getSourceData();
+    const { tasks, followUps } = customerState;
+
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+
+    const allScheduleItems = [
+      ...tasks.map((t) => ({
+        id: t.id,
+        consultantId: t.consultantId,
+        dueDate: t.dueDate,
+        status: t.status,
+      })),
+      ...followUps.filter((f) => !f.completed).map((f) => ({
+        id: f.id,
+        consultantId: f.consultantId,
+        dueDate: f.remindAt,
+        status: 'pending' as const,
+      })),
+    ];
+
+    const stats = consultants
+      .filter((c) => c.role !== 'admin')
+      .map((consultant) => {
+        const consultantItems = allScheduleItems.filter(
+          (item) => item.consultantId === consultant.id
+        );
+
+        const weekItems = consultantItems.filter((item) => {
+          const dueDate = new Date(item.dueDate);
+          return isWithinInterval(dueDate, { start: weekStart, end: weekEnd });
+        });
+
+        const totalTasks = weekItems.length;
+        const completedTasks = weekItems.filter((item) => item.status === 'completed').length;
+        const pendingTasks = totalTasks - completedTasks;
+        const now = new Date();
+        const overdueTasks = weekItems.filter(
+          (item) => item.status !== 'completed' && new Date(item.dueDate) < now
+        ).length;
+        const completionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
+        return {
+          consultantId: consultant.id,
+          consultantName: consultant.name,
+          totalTasks,
+          completedTasks,
+          pendingTasks,
+          overdueTasks,
+          completionRate: Math.round(completionRate * 100) / 100,
+        };
+      })
+      .sort((a, b) => b.completionRate - a.completionRate);
+
+    return stats;
   },
 }));

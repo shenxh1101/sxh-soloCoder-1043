@@ -8,6 +8,10 @@ export type TaskStatus = 'pending' | 'in_progress' | 'completed';
 
 export type CommunicationType = 'phone' | 'wechat' | 'meeting' | 'other';
 
+export type TaskType = 'phone_followup' | 'audition_confirm' | 'quotation_followup' | 'contract_payment' | 'general';
+
+export type TaskSource = 'manual' | 'auto_audition' | 'auto_contract' | 'auto_followup';
+
 export type AuditionStatus = 'scheduled' | 'completed' | 'cancelled';
 
 export type QuotationStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
@@ -44,6 +48,7 @@ export interface Communication {
 export interface FollowUp {
   id: string;
   customerId: string;
+  consultantId?: string;
   remindAt: string;
   content: string;
   completed: boolean;
@@ -53,11 +58,13 @@ export interface FollowUp {
 export interface Audition {
   id: string;
   customerId: string;
+  consultantId?: string;
   course: string;
   auditionAt: string;
   teacher: string;
   feedback: string;
   status: AuditionStatus;
+  location?: string;
 }
 
 export interface Quotation {
@@ -90,6 +97,9 @@ export interface Task {
   dueDate: string;
   priority: Priority;
   status: TaskStatus;
+  type: TaskType;
+  source: TaskSource;
+  relatedId?: string;
 }
 
 export interface Consultant {
@@ -125,6 +135,21 @@ export const STAGE_COLUMNS: StageColumn[] = [
   { id: 'closed', title: '已成交', color: '#10B981', bgColor: '#D1FAE5' },
   { id: 'lost', title: '已流失', color: '#EF4444', bgColor: '#FEE2E2' },
 ];
+
+export const TASK_TYPE_OPTIONS: { value: TaskType; label: string; color: string; icon: string }[] = [
+  { value: 'phone_followup', label: '电话跟进', color: '#3B82F6', icon: '📞' },
+  { value: 'audition_confirm', label: '试听确认', color: '#8B5CF6', icon: '🎯' },
+  { value: 'quotation_followup', label: '报价跟进', color: '#F59E0B', icon: '📋' },
+  { value: 'contract_payment', label: '合同回款', color: '#10B981', icon: '💰' },
+  { value: 'general', label: '其他任务', color: '#6B7280', icon: '📌' },
+];
+
+export const TASK_SOURCE_LABELS: Record<TaskSource, string> = {
+  manual: '手动添加',
+  auto_audition: '试听安排',
+  auto_contract: '合同回款',
+  auto_followup: '跟进提醒',
+};
 
 export const SOURCE_OPTIONS: { value: CustomerSource; label: string }[] = [
   { value: 'online', label: '线上推广' },

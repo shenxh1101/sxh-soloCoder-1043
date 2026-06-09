@@ -9,6 +9,7 @@ export interface TagProps {
   variant?: TagVariant;
   onRemove?: () => void;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 const variantClasses: Record<TagVariant, string> = {
@@ -19,7 +20,7 @@ const variantClasses: Record<TagVariant, string> = {
   danger: 'bg-red-100 text-red-700',
 };
 
-export function Tag({ children, variant = 'default', onRemove, className }: TagProps) {
+export function Tag({ children, variant = 'default', onRemove, className, style }: TagProps) {
   return (
     <span
       className={cn(
@@ -27,6 +28,7 @@ export function Tag({ children, variant = 'default', onRemove, className }: TagP
         variantClasses[variant],
         className
       )}
+      style={style}
     >
       {children}
       {onRemove && (

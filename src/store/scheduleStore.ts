@@ -15,6 +15,8 @@ export interface ScheduleItem {
   customerId?: string;
   status?: string;
   content?: string;
+  taskType?: string;
+  source?: string;
 }
 
 interface ScheduleState {
@@ -109,6 +111,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           customerId: t.customerId,
           status: t.status,
           content: t.description,
+          taskType: t.type,
+          source: t.source,
         });
       });
 
@@ -124,6 +128,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           priority: f.priority,
           customerName: getCustomerName(customers, f.customerId),
           customerId: f.customerId,
+          taskType: 'phone_followup',
+          source: 'auto_followup',
         });
       });
 
@@ -141,6 +147,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           customerId: a.customerId,
           status: a.status,
           content: `讲师：${a.teacher}`,
+          taskType: 'audition_confirm',
+          source: 'auto_audition',
         });
       });
 
@@ -165,6 +173,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           customerId: t.customerId,
           status: t.status,
           content: t.description,
+          taskType: t.type,
+          source: t.source,
         });
       });
 
@@ -180,6 +190,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           priority: f.priority,
           customerName: getCustomerName(customers, f.customerId),
           customerId: f.customerId,
+          taskType: 'phone_followup',
+          source: 'auto_followup',
         });
       });
 
@@ -197,6 +209,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           customerId: a.customerId,
           status: a.status,
           content: `讲师：${a.teacher}`,
+          taskType: 'audition_confirm',
+          source: 'auto_audition',
         });
       });
 
@@ -239,6 +253,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           customerName: getCustomerName(customers, t.customerId),
           customerId: t.customerId,
           status: t.status,
+          taskType: t.type,
+          source: t.source,
         });
       }
     });
@@ -257,6 +273,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
             priority: f.priority,
             customerName: getCustomerName(customers, f.customerId),
             customerId: f.customerId,
+            taskType: 'phone_followup',
+            source: 'auto_followup',
           });
         }
       });
@@ -274,6 +292,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           customerName: getCustomerName(customers, a.customerId),
           customerId: a.customerId,
           status: a.status,
+          taskType: 'audition_confirm',
+          source: 'auto_audition',
         });
       }
     });

@@ -198,27 +198,33 @@ export const mockContracts: Contract[] = Array.from({ length: 15 }, (_, i) => {
   };
 });
 
-export const mockTasks: Task[] = Array.from({ length: 35 }, (_, i) => ({
-  id: `task-${i + 1}`,
-  customerId: `customer-${Math.floor(Math.random() * 55) + 1}`,
-  consultantId: `c${Math.floor(Math.random() * 4) + 1}`,
-  title: [
-    '电话回访客户',
-    '安排试听课程',
-    '发送课程资料',
-    '跟进报名意向',
-    '沟通课程安排',
-    '确认上课时间',
-    '发送报价单',
-    '跟进合同签署',
-    '提醒续费',
-    '邀请参加活动',
-  ][Math.floor(Math.random() * 10)],
-  description: '请及时跟进客户，了解最新意向并做好记录。',
-  dueDate: futureDate(7),
-  priority: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)] as 'high' | 'medium' | 'low',
-  status: ['pending', 'in_progress', 'completed'][Math.floor(Math.random() * 3)] as 'pending' | 'in_progress' | 'completed',
-}));
+export const mockTasks: Task[] = Array.from({ length: 35 }, (_, i) => {
+  const types: Array<'phone_followup' | 'audition_confirm' | 'quotation_followup' | 'contract_payment' | 'general'> = ['phone_followup', 'audition_confirm', 'quotation_followup', 'contract_payment', 'general'];
+  const sources: Array<'manual' | 'auto_audition' | 'auto_contract' | 'auto_followup'> = ['manual', 'auto_audition', 'auto_contract', 'auto_followup'];
+  return {
+    id: `task-${i + 1}`,
+    customerId: `customer-${Math.floor(Math.random() * 55) + 1}`,
+    consultantId: `c${Math.floor(Math.random() * 4) + 1}`,
+    title: [
+      '电话回访客户',
+      '安排试听课程',
+      '发送课程资料',
+      '跟进报名意向',
+      '沟通课程安排',
+      '确认上课时间',
+      '发送报价单',
+      '跟进合同签署',
+      '提醒续费',
+      '邀请参加活动',
+    ][Math.floor(Math.random() * 10)],
+    description: '请及时跟进客户，了解最新意向并做好记录。',
+    dueDate: futureDate(7),
+    priority: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)] as 'high' | 'medium' | 'low',
+    status: ['pending', 'in_progress', 'completed'][Math.floor(Math.random() * 3)] as 'pending' | 'in_progress' | 'completed',
+    type: types[Math.floor(Math.random() * types.length)],
+    source: sources[Math.floor(Math.random() * sources.length)],
+  };
+});
 
 export const initializeMockData = () => {
   if (!localStorage.getItem('crm_initialized')) {
